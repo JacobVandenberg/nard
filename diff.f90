@@ -1,6 +1,7 @@
 ! Created by  on 6/7/21.
 
 module diff
+    use sparse_matrices
     implicit none
 
     contains
@@ -104,31 +105,91 @@ module diff
             return
         end subroutine sparse_tridiag
 
-        subroutine double_diff_FD(x, DDx_vals, DDx_indx, DDx_jndx, ierr)
+        type (coo_matrix) function double_diff_FD(x, BC, ierr)
             ! returns a sparse double derivative matrix
             ! input:
-            !   N: number of gridpoints
-            !   domsize: size of domain
-            ! output:
-            !   DDx_vals, DDx_indx, DDx_jndx: sparse double derivative matrix
+            !   x: equispaced grid
+            !   BC: integer, 1 if boundary conditions are periodic
+            ! return: coo_matrix of the double derivative matrix.
             !
             implicit none
-            real (kind = 8) :: dx
-            real (kind = 8), dimension(:), intent(in) :: x
-            real (kind = 8), intent(out), dimension(:), allocatable :: DDx_vals
-            integer, intent(out), dimension(:), allocatable :: DDx_indx, DDx_jndx
-            integer, intent(out) :: ierr
-            integer :: xlen
 
-            if (size(x, 1) < 2) then
+            ! BEGIN DECLARATIONS
+            ! inputs
+            real (kind = 8), dimension(:), intent(in) :: x
+            integer, intent(in) :: BC
+
+            ! outputs
+            integer, intent(out) :: ierr
+            type (coo_matrix) :: return_matrix
+
+            ! runtime
+            real (kind = 8) :: dx
+            integer :: xlen
+            ! END DECLARATIONS
+
+            ! BEGIN FUNCTION
+            ! make sure youve got enough points
+            xlen = size(x, 1)
+            if (xlen < 2) then
                 ierr = -1
                 return
             end if
 
             dx = x(2) - x(1)
+            call sparse_tridiag(dble(-2)/ (dx*dx), dble(1)/(dx*dx), dble(1)/(dx*dx), xlen,&
+                    return_matrix%vals, return_matrix%indx, return_matrix%jndx, ierr)
+            return_matrix%n = xlen; return_matrix%m = xlen
 
-            call sparse_tridiag(dble(-2)/ (dx*dx), dble(1)/(dx*dx), dble(1)/(dx*dx), size(x, 1), DDx_vals, DDx_indx, DDx_jndx, ierr)
+            if (BC == 1) then
+                call return_matrix%set_value(1, xlen, return_matrix%get_value(1, 2), ierr)
+                call return_matrix%set_value(xlen, 1, return_matrix%get_value(xlen, xlen-1), ierr)
+            else
+                call return_matrix%set_value(1, 2, -return_matrix%get_value(1, 1), ierr)
+                call return_matrix%set_value(xlen, xlen-1, -return_matrix%get_value(xlen, xlen), ierr)
+            end if
+
+            double_diff_FD = return_matrix
             return
-        end subroutine double_diff_FD
+            ! END FUNCTION
+        end function double_diff_FD
+
+        type (coo_matrix) function laplacian2D(x, y, BCx, BCy, ierr)
+            !
+            ! generates a sparse laplacian matrix
+            !
+            ! inputs:
+            !   x, y: vector of equispaced grid points
+            !   BCx, BCy: boundary conditions for x and y directions (1 if periodic)
+            !
+            ! outputs:
+            !   ierr: error flag
+            !   return value: laplacian matrix in sparse coo form
+            !
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            real (kind=8), dimension(:), intent(in) :: x, y
+            integer, intent(in) :: BCx, BCy
+
+            ! outputs
+            integer, intent(out) :: ierr
+
+            ! runtime
+            type (coo_matrix) :: DDx_matrix, DDy_matrix
+
+
+            ! END DECLARATIONS
+
+            ! BEGIN FUNCTION
+            DDx_matrix = double_diff_FD(x, BCx, ierr)
+            DDy_matrix = double_diff_FD(y, BCy, ierr)
+
+            DDx_matrix = sparse_kron(DDx_matrix, speye(size(y, 1), ierr), ierr)
+            DDy_matrix = sparse_kron(speye(size(x, 1), ierr), DDy_matrix, ierr)
+            call sparse_add(DDx_matrix, DDy_matrix, ierr)
+            laplacian2D = DDx_matrix
+        end function laplacian2D
 
 end module diff

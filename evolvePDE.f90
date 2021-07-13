@@ -3,83 +3,120 @@ module evolvePDE
     use config_m
     use ogpf
     use diff
+    use helpers
+    use sparse_matrices
     implicit none
 
     contains
-        subroutine evolve (conf)
+        subroutine IMEX_evolve_impliciteuler_euler_2D (conf, ierr)
+            ! UNDER DEVELOPMENT
             implicit none
-            type (config) :: conf
-            real (kind = 8), dimension(:, :, :, :) :: uuu
-            real (kind = 8), dimension(:) :: x, y, z
+            ! arguments
+            type(gpf) :: gp
+            type (config2d) :: conf
+            integer, intent(out) :: ierr
 
+            ! subroutine variables
+            real (kind=8) :: t, dt, t_max, current_time
+            real (kind=8), dimension(:, :), allocatable :: u
+            integer :: timestep
 
-        end subroutine evolve
-
-        subroutine euler (conf)
-            !
-            ! evolves configuration using eulers method
-            ! inputs: conf: configuration structure
-            !
-            ! outputs: write to file specified by conf
-            !
-
-            implicit none
-            type (config) :: conf
-            real (kind = 8), dimension(:, :), allocatable :: u
-            integer, dimension(:), allocatable :: DDx_indx, DDx_jndx, DDy_indx, DDy_jndx, L_indx, L_jndx, eye_indx, eye_jndx
-            real, dimension(:), allocatable :: DDy_vals, DDx_vals, L_vals, x, y, eye_vals
-            integer :: ierr, N
-
-            N = 30
-
-            ! allocate the result to the size of the initial conditions
-            allocate ( u(shape(conf%IC)), STAT=ierr)
-            if (ierr /= 0)
-                Print *, 'allocation error for initial solution array'
-                exit
+            allocate (u( size(conf%IC, 1), size(conf%IC, 2) ), STAT=ierr)
+            if (ierr /= 0)then
+                return
             end if
+            u = conf%IC
 
-            ! generate grid lines
-            call my_linspace(dble(-1), dble(1), N, x)
-            call my_linspace(dble(-1), dble(1), N, y)
+            timestep = 0
+            t = 0
+            dt = conf%dt
+            t_max = conf%t_max
 
-            ! generate laplacian matrix
-            ! diff wrt x
-            call double_diff_FD(x, DDx_vals, DDx_indx, DDx_jndx, ierr)
-            ! periodic BCS
-            call sparse_update(DDx_vals, DDx_indx, DDx_jndx, sparse_get(DDx_vals, DDx_indx, DDx_jndx, 1, 2), 1, N, ierr)
-            call sparse_update(DDx_vals, DDx_indx, DDx_jndx, sparse_get(DDx_vals, DDx_indx, DDx_jndx, 1, 2), N, 1, ierr)
+            do while (t < t_max)
+                timestep = timestep + 1
+                t = dble(timestep) * dt
+            end do
 
-            call double_diff_FD(y, DDy_vals, DDy_indx, DDy_jndx, ierr)
-            ! periodic BCS
-            call sparse_update(DDy_vals, DDy_indx, DDy_jndx, sparse_get(DDy_vals, DDy_indx, DDy_jndx, 1, 2), 1, N, ierr)
-            call sparse_update(DDy_vals, DDy_indx, DDy_jndx, sparse_get(DDy_vals, DDy_indx, DDy_jndx, 1, 2), N, 1, ierr)
 
-            ! identity matrix
-            call speye(N, eye_vals, eye_indx, eye_jndx, ierr)
+        end subroutine IMEX_evolve_impliciteuler_euler_2D
 
-            ! kron tensor product
+        subroutine EX_evolve_euler_2D(conf, ierr)
             !
-            !DDx = kron(DDx, eye(length(mesh.y)));
-            !DDy = kron(eye(length(mesh.x)), DDy);
-            call sparse_kron(DDx_vals, DDx_indx, DDx_jndx, N, N, eye_vals, eye_indx, eye_jndx, N, N, L_vals, L_indx, L_jndx, nout, mout, ierr)
-            call move_alloc (L_vals, DDx_vals)
-            call move_alloc (L_indx, DDx_indx)
-            call move_alloc (L_jndx, DDx_jndx)
+            ! evolves the specified configuration using the explicit euler method
+            !
+            ! inputs:
+            !   conf: config2d type
+            implicit none
 
-            call sparse_kron(eye_vals, eye_indx, eye_jndx, N, N, DDy_vals, DDy_indx, DDy_jndx, N, N, L_vals, L_indx, L_jndx, nout, mout, ierr)
-            call move_alloc (L_vals, DDy_vals)
-            call move_alloc (L_indx, DDy_indx)
-            call move_alloc (L_jndx, DDy_jndx)
+            ! BEGIN DECLARATIONS
+            ! inputs
+            type (config2d), intent(inout) :: conf
+            integer :: ierr
 
-            ! L = DDx + DDy
-            call sparse_add(DDx_vals, DDx_indx, DDx_jndx, DDy_vals, DDy_indx, DDy_jndx, L_vals, L_indx, L_jndx, ierr)
+            ! runtime variables
+            real (kind=8), allocatable, dimension(:, :) :: u, x_pass_through, u_update1, u_update2, plot_uu
+            type (gpf) :: gp
+            real (kind=8) :: t_max, t, dt, plot_time, current_time
+            integer :: timestep
+            type (csr_matrix) :: Laplacian_CSR
+            type (coo_matrix) :: Laplacian_COO
+            ! END DECLARATIONS
+
+            ! BEGIN SUBROUTINE
+
+            ! initialise grid
+            call conf%make_mesh(ierr)
+            allocate (x_pass_through(size(conf%xx), 2))
+            x_pass_through(:, 1) = reshape(conf%xx, (/size(conf%xx)/))
+            x_pass_through(:, 2) = reshape(conf%yy, (/size(conf%yy)/))
+            Laplacian_COO = laplacian2d(conf%x, conf%y, conf%BCx, conf%BCy, ierr)
+            Laplacian_CSR = coo_to_csr(Laplacian_COO, ierr)
+
+            ! initialise runge kutta variables
+            allocate (u( size(conf%IC, 1), size(conf%IC, 2) ), u_update1( size(conf%IC, 1), size(conf%IC, 2) ))
+            allocate (u_update2( size(conf%IC, 1), size(conf%IC, 2) ))
+            allocate (plot_uu( size(conf%xx, 1), size(conf%xx, 2) ))
+
+            timestep = 0
+            t = dble(0)
+            dt = conf%dt
+            t_max = conf%t_max
+            u = conf%IC
+
+            ! plotting parameters
+
+            call cpu_time(plot_time)
+            do while (t < t_max)
+
+                call csr_multiply(Laplacian_CSR, u, u_update1)
+                call scale_columns(u_update1, dble((/1, 30/)))
+                call conf%explicit_rhs(u, x_pass_through, t, u_update2)
+
+                ! BEGIN PLOTTING
+                ! TODO: move this to a subroutine
+                call cpu_time(current_time)
+                if (current_time - plot_time > conf%plot_interval) then
+                    Print *, t
+                    plot_uu = reshape(u(:, 1), shape(conf%xx))
+                    call gp%title('u')
+                    call gp%options("set terminal png size 1920,1080; set output 'tests/test_evolvePDE_euler.png'")
+                    call gp%contour(conf%xx,conf%yy,plot_uu, palette='jet')
+                    call cpu_time(plot_time)
+                end if
+                ! END PLOTTING
+
+                ! euler step
+                u = u + dt * (u_update1 + u_update2)
+
+                timestep = timestep + 1
+                t = dt * timestep
+            end do
+
+            ! END SUBROUTINE
+            return
+        end subroutine EX_evolve_euler_2D
 
 
-            deallocate(u)
-
-
-        end subroutine euler
 
 end module evolvePDE
 

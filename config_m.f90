@@ -1,49 +1,54 @@
 ! Created by  on 6/7/21.
 
 module config_m
-    use helpers, only: linspace, meshgrid3
+    use helpers, only: my_linspace, meshgrid3
+    use ogpf
     implicit none
     !private
-    public gridline
-    type config
+    type config2d
         real (kind=8), dimension(:), allocatable :: x
         real (kind=8), dimension(:), allocatable :: y
-        real (kind=8), dimension(:), allocatable :: z
-        real (kind=8), dimension(:, :, :), allocatable :: xxx
-        real (kind=8), dimension(:, :, :), allocatable :: yyy
-        real (kind=8), dimension(:, :, :), allocatable :: zzz
-        real (kind=8), dimension(:, :), allocatable :: IC
-        real (kind=8), dimension(:, :, :), allocatable :: plot_interval
-        integer (kind=8) :: nx, ny, nz
+        real (kind=8), dimension(:, :), allocatable :: IC, xx, yy
+        real (kind=8) :: dt, t_max, plot_interval
+        integer :: BCx, BCy
+        procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
+
 
     contains
-        procedure :: make_mesh
+        procedure, pass, public :: make_mesh => make_mesh2D
 
-    end type config
+    end type config2d
 
-    !type Gridline
-
-    !end type Gridline
-
-    contains
-        subroutine gridline(N, BC, domain, spacing, g)
+    interface
+        subroutine example_explicit_rhs(u_in, x_in, t_in, u_out)
+            ! example right hand side
             implicit none
-            integer (kind=8), intent(in) :: N
-            integer (kind=8), intent(in) :: BC
-            real (kind=8), intent(in) :: domain(2)
-            integer (kind=8), intent(in) :: spacing
-            real (kind=8), intent(out) :: g(N)
+            real (kind=8), dimension(:, :), intent(in) :: u_in, x_in
+            real (kind=8), intent(in) :: t_in
+            real (kind=8), dimension(:, :), intent(out) :: u_out
+        end subroutine example_explicit_rhs
+    end interface
 
-            call linspace (domain(1), domain(2), N, g)
+    contains
+
+        subroutine make_mesh2D(this, ierr)
+            ! generates the 2d mesh from the 1d gridlines
+
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            class (config2d), intent(inout) :: this
+
+            ! outputs
+            integer, intent(out) :: ierr
+
+            ! END DECLARATIONS
+
+            ! BEGIN FUNCTION
+            call meshgrid(this%xx, this%yy, this%x, this%y, ierr)
             return
-        end subroutine gridline
-
-        subroutine make_mesh(this)
-            implicit none
-            class(config), intent(inout) :: this
-            call meshgrid3(this%x, this%y,this%z, this%nx, this%ny, this%nz, this%xxx, this%yyy, this%zzz)
-
-        end subroutine make_mesh
-
+            ! END FUNCTION
+        end subroutine make_mesh2D
 
 end module config_m
