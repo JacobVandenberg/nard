@@ -136,9 +136,9 @@ module ogpf
 
     implicit none
 
-    private
+    private linspace, meshgrid
 
-    public arange, linspace, meshgrid, wp
+    public arange, wp
     public num2str
 
     !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

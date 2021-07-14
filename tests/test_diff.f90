@@ -13,11 +13,11 @@ program test_diff
     contains
         subroutine test_tridiag
             implicit none
-            integer :: N = 4, ierr
-            real (kind = 8), dimension(:, :), allocatable :: result
+            integer (ip) :: N = 4_ip, ierr
+            real (rp), dimension(:, :), allocatable :: result
 
             allocate (result(N, N), STAT=ierr)
-            if (ierr /= 0) then
+            if (ierr /= 0_ip) then
                 Print *, 'Allocation error for array of size (', N, 'x',N,'). Error code:', ierr
             end if
 
@@ -25,9 +25,9 @@ program test_diff
             Print *, result
             deallocate(result)
 
-            N = 0
+            N = 0_ip
             allocate (result(N, N), STAT=ierr)
-            if (ierr /= 0) then
+            if (ierr /= 0_ip) then
                 Print *, 'Allocation error for array of size (', N, 'x',N,'). Error code:', ierr
             end if
 
@@ -35,9 +35,9 @@ program test_diff
             Print *, result
             deallocate(result)
 
-            N = 1
+            N = 1_ip
             allocate (result(N, N), STAT=ierr)
-            if (ierr /= 0) then
+            if (ierr /= 0_ip) then
                 Print *, 'Allocation error for array of size (', N, 'x',N,'). Error code:', ierr
             end if
 
@@ -45,9 +45,9 @@ program test_diff
             Print *, result
             deallocate (result)
 
-            N = 2
+            N = 2_ip
             allocate (result(N, N), STAT=ierr)
-            if (ierr /= 0) then
+            if (ierr /= 0_ip) then
                 Print *, 'Allocation error for array of size (', N, 'x',N,'). Error code:', ierr
             end if
 
@@ -58,11 +58,11 @@ program test_diff
 
         subroutine test_sparse_tridiag
             implicit none
-            integer :: N, ierr
-            real(kind=8), allocatable, dimension(:) :: val
-            integer, dimension(:), allocatable :: indx, jndx
+            integer (ip) :: N, ierr
+            real(rp), allocatable, dimension(:) :: val
+            integer (ip), dimension(:), allocatable :: indx, jndx
 
-            N = 5
+            N = 5_ip
             call sparse_tridiag(dble(-2), dble(1), dble(-1), N, val, indx, jndx, ierr)
 
             Print *, val
@@ -77,16 +77,16 @@ program test_diff
         subroutine test_double_diff_FD
             implicit none
             type (coo_matrix) :: mat
-            real (kind=8), dimension(:), allocatable :: x
-            integer :: ierr
+            real (rp), dimension(:), allocatable :: x
+            integer (ip) :: ierr
 
-            x = linspace(dble(0), dble(4), 5)
-            mat = double_diff_FD(x, 1, ierr)
+            x = linspace(dble(0), dble(4), 5_ip)
+            mat = double_diff_FD(x, 1_ip, ierr)
             Print *, mat%vals
             deallocate(x)
 
-            x = linspace(dble(0), dble(4), 5)
-            mat = double_diff_FD(x, 0, ierr)
+            x = linspace(dble(0), dble(4), 5_ip)
+            mat = double_diff_FD(x, 0_ip, ierr)
             Print *, mat%vals
 
         end subroutine test_double_diff_FD
@@ -95,21 +95,21 @@ program test_diff
             implicit none
             type (coo_matrix) :: mat
             type (gpf) :: gp
-            real (kind=8), dimension(:), allocatable :: x, y
-            real (kind=8), dimension(:, :), allocatable :: xx, yy, Luu, uu_plot
-            integer :: ierr, N
-            N = 50
+            real (rp), dimension(:), allocatable :: x, y
+            real (rp), dimension(:, :), allocatable :: xx, yy, Luu, uu_plot
+            integer (ip) :: ierr, N
+            N = 50_ip
             x = linspace(dble(-1), dble(1), N)
             y = linspace(dble(-1), dble(1), N)
 
             call meshgrid(xx, yy, x, y, ierr)
 
-            mat = laplacian2D(x, y, 0, 0, ierr)
+            mat = laplacian2D(x, y, 0_ip, 0_ip, ierr)
             allocate(Luu(N * N, 1), uu_plot(N, N))
 
             Print *, mat%n, mat%m
 
-            call coo_multiply(mat, reshape(cos(3.14159 * xx) + cos(3.14159 * yy), (/N*N, 1/)), Luu)
+            call coo_multiply(mat, reshape(cos(3.14159 * xx) + cos(3.14159 * yy), (/N*N, 1_ip/)), Luu)
             uu_plot = reshape(Luu, (/N, N/))
             call gp%surf(xx, yy, uu_plot)
 

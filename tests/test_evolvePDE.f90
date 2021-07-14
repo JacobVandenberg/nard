@@ -9,20 +9,20 @@ program test_evolvePDE
         subroutine test_euler
             implicit none
             type (config2d) :: conf
-            integer :: N, ierr
-            real (kind=8), allocatable, dimension(:) :: x, y
-            real (kind=8), allocatable, dimension(:, :) :: xx, yy
-            real (kind=8) :: pi
+            integer (ip) :: N, ierr
+            real (rp), allocatable, dimension(:) :: x, y
+            real (rp), allocatable, dimension(:, :) :: xx, yy
+            real (rp) :: pi
             pi = dble(3.14159265358979323846264338327950288419716939937510)
-            N = 60
+            N = 500_ip
 
-            conf%BCx = 1
-            conf%BCy = 1
-            conf%t_max = 5
-            conf%dt = 0.000001
-            conf%plot_interval = 5*16
+            conf%BCx = 1_ip
+            conf%BCy = 1_ip
+            conf%t_max = 5_ip
+            conf%dt = 0.00001_rp
+            conf%plot_interval = 5_ip*16_ip
 
-            allocate(conf%IC(N*N, 2))
+            allocate(conf%IC(N*N, 2_ip))
 
 
             ! generate grid lines
@@ -40,22 +40,25 @@ program test_evolvePDE
 
             conf%explicit_rhs => rhs
 
+            allocate (conf%diffusion_consts(2))
+            conf%diffusion_consts = dble((/ 1, 30 /))
 
-            call EX_evolve_euler_2D(conf, ierr)
+
+            call IMEX_evolve_impliciteuler_euler_2D(conf, ierr)
 
         end subroutine test_euler
 
         subroutine rhs(u_in, x_in, t, u_out)
             implicit none
-            real (kind=8), dimension(:, :), intent(in) :: u_in, x_in
-            real (kind=8), intent(in) :: t
-            real (kind=8), intent(out), dimension(:, :) :: u_out
+            real (rp), dimension(:, :), intent(in) :: u_in, x_in
+            real (rp), intent(in) :: t
+            real (rp), intent(out), dimension(:, :) :: u_out
 
-            real (kind=8) :: a, b, gamma
+            real (rp) :: a, b, gamma
 
             a = 0.2
             b = 1.3
-            gamma = 500
+            gamma = 500_ip
 
             u_out(:, 1) = gamma * (a - u_in(:, 1) + u_in(:, 1) * u_in(:, 2) * u_in(:, 1))
             u_out(:, 2) = gamma * (b -  u_in(:, 1) * u_in(:, 2) * u_in(:, 1))

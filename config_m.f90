@@ -1,16 +1,16 @@
 ! Created by  on 6/7/21.
 
 module config_m
-    use helpers, only: my_linspace, meshgrid3
+    use helpers
     use ogpf
+    use precision
     implicit none
     !private
     type config2d
-        real (kind=8), dimension(:), allocatable :: x
-        real (kind=8), dimension(:), allocatable :: y
-        real (kind=8), dimension(:, :), allocatable :: IC, xx, yy
-        real (kind=8) :: dt, t_max, plot_interval
-        integer :: BCx, BCy
+        real (rp), dimension(:), allocatable :: x, y, diffusion_consts
+        real (rp), dimension(:, :), allocatable :: IC, xx, yy
+        real (rp) :: dt, t_max, plot_interval
+        integer (ip) :: BCx, BCy
         procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
 
 
@@ -21,11 +21,12 @@ module config_m
 
     interface
         subroutine example_explicit_rhs(u_in, x_in, t_in, u_out)
+            import :: rp
             ! example right hand side
             implicit none
-            real (kind=8), dimension(:, :), intent(in) :: u_in, x_in
-            real (kind=8), intent(in) :: t_in
-            real (kind=8), dimension(:, :), intent(out) :: u_out
+            real (rp), dimension(:, :), intent(in) :: u_in, x_in
+            real (rp), intent(in) :: t_in
+            real (rp), dimension(:, :), intent(out) :: u_out
         end subroutine example_explicit_rhs
     end interface
 
@@ -41,7 +42,7 @@ module config_m
             class (config2d), intent(inout) :: this
 
             ! outputs
-            integer, intent(out) :: ierr
+            integer (ip), intent(out) :: ierr
 
             ! END DECLARATIONS
 

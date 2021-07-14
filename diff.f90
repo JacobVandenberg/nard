@@ -2,6 +2,7 @@
 
 module diff
     use sparse_matrices
+    use precision
     implicit none
 
     contains
@@ -15,30 +16,30 @@ module diff
             ! output:
             !         T: returned matrix
             implicit none
-            real (kind=8), intent(in) :: a, b, c
-            real (kind=8), dimension(:, :), intent(out) :: T
-            integer :: N, i
-            N = size(T, 1)
+            real (rp), intent(in) :: a, b, c
+            real (rp), dimension(:, :), intent(out) :: T
+            integer (ip) :: N, i
+            N = size(T, 1_ip)
 
-            if (N==0) then
+            if (N==0_ip) then
                 return
             end if
-            if (N==1) then
-                T(1, 1) = a
+            if (N==1_ip) then
+                T(1_ip, 1_ip) = a
                 return
             end if
 
             ! deal with edges
-            T(1, 1) = a
+            T(1_ip, 1_ip) = a
             T(N, N) = a
-            T(1, 2) = b
-            T(N, N-1) = c
+            T(1_ip, 2_ip) = b
+            T(N, N-1_ip) = c
 
             ! deal with the rest
-            do i = 2, N-1
+            do i = 2_ip, N-1_ip
                 T(i, i) = a
-                T(i, i+1) = b
-                T(i, i-1) = c
+                T(i, i+1_ip) = b
+                T(i, i-1_ip) = c
             end do
             return
         end subroutine tridiag
@@ -62,46 +63,46 @@ module diff
             !
 
             implicit none
-            real (kind=8), intent(in) :: a, b, c
-            integer, intent(in) :: N
-            integer, intent(out) :: ierr
-            real (kind=8), dimension(:), allocatable :: val
-            integer, dimension(:), allocatable :: indx, jndx
-            integer :: i
+            real (rp), intent(in) :: a, b, c
+            integer (ip), intent(in) :: N
+            integer (ip), intent(out) :: ierr
+            real (rp), dimension(:), allocatable :: val
+            integer (ip), dimension(:), allocatable :: indx, jndx
+            integer (ip) :: i
 
-            allocate(indx(3*N-2), jndx(3*N-2), val(3*N-2), STAT=ierr)
-            if (ierr/=0) then
+            allocate(indx(3_ip*N-2_ip), jndx(3_ip*N-2_ip), val(3_ip*N-2_ip), STAT=ierr)
+            if (ierr/=0_ip) then
                 return
             end if
 
-            if (N == 0) then
+            if (N == 0_ip) then
                 return
             end if
 
-            if (N == 1) then
-                val(1) = a
-                indx(1) = 1
-                jndx(1) = 1
+            if (N == 1_ip) then
+                val(1_ip) = a
+                indx(1_ip) = 1_ip
+                jndx(1_ip) = 1_ip
                 return
             end if
 
-            val(1) = a
-            val(2) = b
-            indx(1) = 1
-            jndx(1) = 1
-            indx(2) = 1
-            jndx(2) = 2
-            do i = 2, N-1
-                indx(3*i-3:3*i-1) = i
-                jndx(3*i-3:3*i-1) = (/ i-1, i, i+1 /)
-                val(3*i-3:3*i-1) = (/ c, a, b /)
+            val(1_ip) = a
+            val(2_ip) = b
+            indx(1_ip) = 1_ip
+            jndx(1_ip) = 1_ip
+            indx(2_ip) = 1_ip
+            jndx(2_ip) = 2_ip
+            do i = 2_ip, N-1_ip
+                indx(3_ip*i-3_ip:3_ip*i-1_ip) = i
+                jndx(3_ip*i-3_ip:3_ip*i-1_ip) = (/ i-1_ip, i, i+1_ip /)
+                val(3_ip*i-3_ip:3_ip*i-1_ip) = (/ c, a, b /)
             end do
-            val(3*N-2) = a
-            val(3*N-3) = c
-            indx(3*N-2) = N
-            jndx(3*N-2) = N
-            indx(3*N-3) = N
-            jndx(3*N-3) = N-1
+            val(3_ip*N-2_ip) = a
+            val(3_ip*N-3_ip) = c
+            indx(3_ip*N-2_ip) = N
+            jndx(3_ip*N-2_ip) = N
+            indx(3_ip*N-3_ip) = N
+            jndx(3_ip*N-3_ip) = N-1_ip
             return
         end subroutine sparse_tridiag
 
@@ -109,44 +110,44 @@ module diff
             ! returns a sparse double derivative matrix
             ! input:
             !   x: equispaced grid
-            !   BC: integer, 1 if boundary conditions are periodic
+            !   BC: integer (ip, 1 if boundary conditions are periodic
             ! return: coo_matrix of the double derivative matrix.
             !
             implicit none
 
             ! BEGIN DECLARATIONS
             ! inputs
-            real (kind = 8), dimension(:), intent(in) :: x
-            integer, intent(in) :: BC
+            real (rp), dimension(:), intent(in) :: x
+            integer (ip), intent(in) :: BC
 
             ! outputs
-            integer, intent(out) :: ierr
+            integer (ip), intent(out) :: ierr
             type (coo_matrix) :: return_matrix
 
             ! runtime
-            real (kind = 8) :: dx
-            integer :: xlen
+            real (rp) :: dx
+            integer (ip) :: xlen
             ! END DECLARATIONS
 
             ! BEGIN FUNCTION
             ! make sure youve got enough points
-            xlen = size(x, 1)
-            if (xlen < 2) then
-                ierr = -1
+            xlen = size(x, 1_ip)
+            if (xlen < 2_ip) then
+                ierr = -1_ip
                 return
             end if
 
-            dx = x(2) - x(1)
+            dx = x(2_ip) - x(1_ip)
             call sparse_tridiag(dble(-2)/ (dx*dx), dble(1)/(dx*dx), dble(1)/(dx*dx), xlen,&
                     return_matrix%vals, return_matrix%indx, return_matrix%jndx, ierr)
             return_matrix%n = xlen; return_matrix%m = xlen
 
-            if (BC == 1) then
-                call return_matrix%set_value(1, xlen, return_matrix%get_value(1, 2), ierr)
-                call return_matrix%set_value(xlen, 1, return_matrix%get_value(xlen, xlen-1), ierr)
+            if (BC == 1_ip) then
+                call return_matrix%set_value(1_ip, xlen, return_matrix%get_value(1_ip, 2_ip), ierr)
+                call return_matrix%set_value(xlen, 1_ip, return_matrix%get_value(xlen, xlen-1_ip), ierr)
             else
-                call return_matrix%set_value(1, 2, -return_matrix%get_value(1, 1), ierr)
-                call return_matrix%set_value(xlen, xlen-1, -return_matrix%get_value(xlen, xlen), ierr)
+                call return_matrix%set_value(1_ip, 2_ip, -return_matrix%get_value(1_ip, 1_ip), ierr)
+                call return_matrix%set_value(xlen, xlen-1_ip, -return_matrix%get_value(xlen, xlen), ierr)
             end if
 
             double_diff_FD = return_matrix
@@ -170,11 +171,11 @@ module diff
 
             ! BEGIN DECLARATIONS
             ! inputs
-            real (kind=8), dimension(:), intent(in) :: x, y
-            integer, intent(in) :: BCx, BCy
+            real (rp), dimension(:), intent(in) :: x, y
+            integer (ip), intent(in) :: BCx, BCy
 
             ! outputs
-            integer, intent(out) :: ierr
+            integer (ip), intent(out) :: ierr
 
             ! runtime
             type (coo_matrix) :: DDx_matrix, DDy_matrix
@@ -186,8 +187,8 @@ module diff
             DDx_matrix = double_diff_FD(x, BCx, ierr)
             DDy_matrix = double_diff_FD(y, BCy, ierr)
 
-            DDx_matrix = sparse_kron(DDx_matrix, speye(size(y, 1), ierr), ierr)
-            DDy_matrix = sparse_kron(speye(size(x, 1), ierr), DDy_matrix, ierr)
+            DDx_matrix = sparse_kron(DDx_matrix, speye(size(y, 1_ip, KIND=ip), ierr), ierr)
+            DDy_matrix = sparse_kron(speye(size(x, 1_ip, KIND=ip), ierr), DDy_matrix, ierr)
             call sparse_add(DDx_matrix, DDy_matrix, ierr)
             laplacian2D = DDx_matrix
         end function laplacian2D
