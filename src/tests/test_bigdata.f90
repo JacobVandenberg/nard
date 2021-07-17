@@ -14,7 +14,7 @@ program test_bigdata
             real (rp), allocatable, dimension(:, :) :: xx, yy
             real (rp) :: pi
             pi = dble(3.14159265358979323846264338327950288419716939937510)
-            N = 200_ip
+            N = 100_ip
 
             conf%BCx = 1_ip
             conf%BCy = 1_ip
@@ -22,7 +22,7 @@ program test_bigdata
             conf%dt = 0.000001_rp
             conf%plot_interval = 5_ip*16_ip
 
-            conf%savenum = 50000_ip
+            conf%savenum = 200000_ip
             conf%max_save_size = 33000000000_ip ! 33 gb
             !allocate(conf%savefilename(7))
             conf%savefilename = "test.h5"
