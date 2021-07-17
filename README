@@ -1,0 +1,5 @@
+nard: non autonomous reaction diffusion solver, using finite differences
+
+./src: source code
+./docs: documentation
+./bin: output executables
