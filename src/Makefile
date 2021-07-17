@@ -11,7 +11,7 @@ LIB=usr/lib/x86_64-linux-gnu/hdf5/serial
 INC=usr/include/hdf5/serial
 INC2=./lusol/src
 
-TESTS = test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data
+TESTS = test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata
 
 %.o: %.f90
 	$(FC) $(FFLAGS) -I/$(INC) -I$(INC2) -c $<
