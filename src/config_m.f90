@@ -10,8 +10,9 @@ module config_m
         real (rp), dimension(:), allocatable :: x, y, diffusion_consts
         real (rp), dimension(:, :), allocatable :: IC, xx, yy
         real (rp) :: dt, t_max, plot_interval
-        integer (ip) :: BCx, BCy
+        integer (ip) :: BCx, BCy, savenum, max_save_size
         procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
+        character (:), allocatable :: savefilename
 
 
     contains
@@ -24,8 +25,9 @@ module config_m
         real (rp), dimension(:, :), allocatable :: IC
         real (rp), dimension(:, :, :), allocatable :: xxx, yyy, zzz
         real (rp) :: dt, t_max, plot_interval
-        integer (ip) :: BCx, BCy, BCz
+        integer (ip) :: BCx, BCy, BCz, savenum, max_save_size
         procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
+        character (:), allocatable :: savefilename
 
 
     contains

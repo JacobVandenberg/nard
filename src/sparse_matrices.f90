@@ -524,7 +524,7 @@ module sparse_matrices
             return_value%parmlu = dble(0)
 
             return_value%luparm(1) = 6_ip
-            return_value%luparm(2) =100_ip
+            return_value%luparm(2) = 10_ip
             return_value%luparm(3) = 5_ip
             return_value%luparm(8) = 1_ip
 

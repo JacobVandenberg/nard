@@ -17,7 +17,7 @@ TESTS = test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices
 
 tests: $(TESTS)
 $(TESTS): $(OBJ)
-	$(FC) $(FFLAGS) -L/$(LIB) -I/$(INC) -I$(INC2) -o $(OUTPREFIX)$@ $(OBJ) tests/$@.f90
+	$(FC) $(OBJ) $(FFLAGS) -L/$(LIB) -I/$(INC) -I$(INC2) -o $(OUTPREFIX)$@ tests/$@.f90
 
 #build: $(OBJ)
 #	$(FC) $(FFLAGS) -L/$(LIB) -I/$(INC) -I$(INC2) -o bin/test_diff $(OBJ) tests/test_diff.f90

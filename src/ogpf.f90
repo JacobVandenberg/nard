@@ -165,7 +165,7 @@ module ogpf
     character(len=*), parameter ::  gnuplot_term_type = 'wxt'                      ! Output terminal
     character(len=*), parameter ::  gnuplot_term_font = 'verdana,10'               ! font
     character(len=*), parameter ::  gnuplot_term_size = '640,480'   !'960,840'                  ! plot window size
-    character(len=*), parameter ::  gnuplot_output_filename='ogpf_temp_script.gp' ! temporary file for output
+    character(len=*), parameter ::  gnuplot_output_filename='src/ogpf_temp_script.gp' ! temporary file for output
     ! extra configuration can be set using ogpf object
 
     ! module procedure
@@ -2251,6 +2251,7 @@ contains
         if (get_os_type() == 1) then
             call execute_command_line ('wgnuplot -persist ' // this%txtfilename)  !   Now plot the results
         else
+            Print *, "executing", 'gnuplot -persist ' // this%txtfilename
             call execute_command_line ('gnuplot -persist ' // this%txtfilename)  !   Now plot the results
         end if
     contains

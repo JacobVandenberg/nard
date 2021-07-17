@@ -6,6 +6,7 @@ module evolvePDE
     use helpers
     use sparse_matrices
     use precision
+    use hdf5
     implicit none
 
     contains
@@ -23,13 +24,28 @@ module evolvePDE
                     u_update_temp1, u_update_temp2
             type (gpf) :: gp
             real (rp) :: t_max, t, dt, plot_time, current_time
-            integer (ip) :: timestep, dummy_i
+            integer (ip) :: timestep, dummy_i, max_timesteps, savenum
             type (csr_matrix) :: Laplacian_CSR
             type (coo_matrix) :: Laplacian_COO, Laplacian_COO_temp, eye_temp
             type (sparse_lu_decomposition), dimension(:), allocatable :: implicit_euler_LU
+
+            ! HDF5 variables
+            integer :: hdf5err
+            integer (HID_T) :: outfile_id
+            integer (HID_T) :: dsetv_id
+            integer (HID_T) :: dataspacev_id
+            integer (HID_T) :: memspace
+            integer (HSIZE_T), dimension(3) :: file_dimensions, chunk_dimensions, voffset, vchunkcount
+            integer :: rank = 3
             ! END DECLARATIONS
 
             ! BEGIN SUBROUTINE
+
+            ! initialise runge kutta variables
+            allocate (u( size(conf%IC, 1), size(conf%IC, 2) ), u_update1( size(conf%IC, 1), size(conf%IC, 2) ))
+            allocate (u_update2( size(conf%IC, 1), size(conf%IC, 2) ),&
+                    u_update_temp1( size(conf%IC, 1), 1 ), u_update_temp2( size(conf%IC, 1), 1 ))
+            allocate (plot_uu( size(conf%xx, 1), size(conf%xx, 2) ))
 
             ! initialise grid
             call conf%make_mesh(ierr)
@@ -39,11 +55,64 @@ module evolvePDE
             Laplacian_COO = laplacian2d(conf%x, conf%y, conf%BCx, conf%BCy, ierr)
             Laplacian_CSR = coo_to_csr(Laplacian_COO, ierr)
 
-            ! initialise runge kutta variables
-            allocate (u( size(conf%IC, 1), size(conf%IC, 2) ), u_update1( size(conf%IC, 1), size(conf%IC, 2) ))
-            allocate (u_update2( size(conf%IC, 1), size(conf%IC, 2) ),&
-                    u_update_temp1( size(conf%IC, 1), 1 ), u_update_temp2( size(conf%IC, 1), 1 ))
-            allocate (plot_uu( size(conf%xx, 1), size(conf%xx, 2) ))
+            ! gather info from conf
+            timestep = 0
+            t = dble(0)
+            dt = conf%dt
+            t_max = conf%t_max
+            u = conf%IC
+            savenum = conf%savenum
+
+            ! initialise saving variables
+            max_timesteps = int( t_max / dt)
+
+            ! estimate output size
+            if ( (size(conf%IC, kind=ip) + 1_ip) * (savenum + 1) > conf%max_save_size) then
+                Print *, "ERROR: Desired output file exceeds maximum file size."
+                Print *, "Desired bytes: ", (size(conf%IC, kind=ip) + 1_ip) * savenum
+                Print *, "Maximum bytes: ", conf%max_save_size
+                Print *, "increase conf%max_save_size or reduce conf%savenum to resolve"
+                ierr = 2
+                return
+            end if
+
+            file_dimensions = (/ size(conf%IC, 1, kind=HSIZE_T), size(conf%IC, 2, kind=HSIZE_T),&
+                    INT(savenum+1, KIND=HSIZE_T)/)
+            chunk_dimensions = file_dimensions
+            chunk_dimensions(3) = 1
+
+            call h5open_f(hdf5err)
+            if (hdf5err /=0) then
+                Print *, "HDF5 ERROR: error code ", hdf5err
+            end if
+            ! Create a new file using the default properties.
+            call h5fcreate_f(conf%savefilename, H5F_ACC_TRUNC_F, outfile_id, hdf5err)
+            if (hdf5err /=0) then
+                Print *, "HDF5 ERROR: error code ", hdf5err
+            end if
+
+            ! Create the data space for the binned dataset.
+            call h5screate_simple_f(rank, file_dimensions, dataspacev_id,  hdf5err)
+            if (hdf5err /=0) then
+                Print *, "HDF5 ERROR: error code ", hdf5err
+            end if
+
+            ! Create the chunked dataset.
+            call h5dcreate_f(outfile_id, "data", H5T_NATIVE_DOUBLE, dataspacev_id, dsetv_id, hdf5err)
+            if (hdf5err /=0) then
+                Print *, "HDF5 ERROR: error code ", hdf5err
+            end if
+
+            ! Create the memory space for the selection
+            call h5screate_simple_f(rank, chunk_dimensions, memspace,  hdf5err)
+            if (hdf5err /=0) then
+                Print *, "HDF5 ERROR: error code ", hdf5err
+            end if
+
+            voffset(1:2) = 0
+            vchunkcount = chunk_dimensions
+
+            voffset(3) = -1
 
             ! implicit euler matrices
             allocate (implicit_euler_LU( size(conf%IC, 2) ), STAT=ierr)
@@ -58,14 +127,6 @@ module evolvePDE
                 call sparse_add(Laplacian_COO_temp, eye_temp, ierr)
                 implicit_euler_LU(dummy_i) = sparse_lu(Laplacian_COO_temp, ierr)
             end do
-
-
-
-            timestep = 0
-            t = dble(0)
-            dt = conf%dt
-            t_max = conf%t_max
-            u = conf%IC
 
             ! plotting parameters
 
@@ -82,6 +143,36 @@ module evolvePDE
 
                 call conf%explicit_rhs(u, x_pass_through, t, u_update2)
 
+                ! BEGIN SAVING
+                if ((timestep * savenum) / max_timesteps > voffset(3)) then
+                    voffset(3) = ((timestep * savenum) / max_timesteps)
+
+                    call h5sselect_hyperslab_f(dataspacev_id, H5S_SELECT_SET_F, voffset, vchunkcount, hdf5err)
+                    if (hdf5err /=0) then
+                        Print *, "HDF5 ERROR: error in h5sselect_hyperslab_f. error code ", hdf5err
+                        return
+                    end if
+
+                    ! Write the data to the dataset.
+                    call h5dwrite_f(dsetv_id, H5T_NATIVE_DOUBLE, reshape(u, chunk_dimensions), chunk_dimensions,&
+                            hdf5err, memspace, dataspacev_id)
+                    if (hdf5err /=0) then
+                        Print *, "HDF5 ERROR: error in h5dwrite_f. error code ", hdf5err
+                        return
+                    end if
+                    call h5sclose_f(dataspacev_id, hdf5err)
+                    if (hdf5err /=0) then
+                        Print *, "HDF5 ERROR: error in h5sclose_f. error code ", hdf5err
+                        return
+                    end if
+                    call h5dget_space_f(dsetv_id, dataspacev_id, hdf5err)
+                    if (hdf5err /=0) then
+                        Print *, "HDF5 ERROR: error in h5dget_space_f. error code ", hdf5err
+                        return
+                    end if
+                end if
+                ! END SAVING
+
                 ! BEGIN PLOTTING
                 ! TODO: move this to a subroutine
                 call cpu_time(current_time)
@@ -89,7 +180,7 @@ module evolvePDE
                     Print *, t
                     plot_uu = reshape(u(:, 1), shape(conf%xx))
                     call gp%title('u')
-                    call gp%options("set terminal png size 1920,1080; set output 'tests/test_evolvePDE_euler.png'")
+                    call gp%options('set terminal png size 1920,1080; set output "src/tests/test_evolvePDE_euler.png"')
                     call gp%contour(conf%xx,conf%yy,plot_uu, palette='jet')
                     call cpu_time(plot_time)
                 end if
@@ -101,6 +192,12 @@ module evolvePDE
                 timestep = timestep + 1
                 t = dt * timestep
             end do
+
+            call h5dclose_f(dsetv_id, hdf5err)
+            call h5sclose_f(memspace, hdf5err)
+            call h5fclose_f(outfile_id, hdf5err)
+
+            call h5close_f(hdf5err)
 
             ! END SUBROUTINE
             return
@@ -278,7 +375,7 @@ module evolvePDE
                 end if
                 ! END PLOTTING
 
-                ! euler step
+                ! RK step
                 u = u + dt * (u_update1 + u_update2)
 
                 timestep = timestep + 1
