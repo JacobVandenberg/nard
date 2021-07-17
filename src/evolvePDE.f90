@@ -3,6 +3,7 @@ module evolvePDE
     use config_m
     use ogpf
     use diff
+    use data
     use helpers
     use sparse_matrices
     use precision
@@ -22,6 +23,7 @@ module evolvePDE
             ! runtime variables
             real (rp), allocatable, dimension(:, :) :: u, x_pass_through, u_update1, u_update2, plot_uu,&
                     u_update_temp1, u_update_temp2
+            real (rp), allocatable, dimension(:) :: t_vec_out
             type (gpf) :: gp
             real (rp) :: t_max, t, dt, plot_time, current_time
             integer (ip) :: timestep, dummy_i, max_timesteps, savenum
@@ -30,13 +32,9 @@ module evolvePDE
             type (sparse_lu_decomposition), dimension(:), allocatable :: implicit_euler_LU
 
             ! HDF5 variables
-            integer :: hdf5err
-            integer (HID_T) :: outfile_id
-            integer (HID_T) :: dsetv_id
-            integer (HID_T) :: dataspacev_id
-            integer (HID_T) :: memspace
-            integer (HSIZE_T), dimension(3) :: file_dimensions, chunk_dimensions, voffset, vchunkcount
-            integer :: rank = 3
+            type (h5file) :: save_file
+            type (chunked_3D_space) :: result_space
+            integer (ip), dimension(3) :: file_dimensions
             ! END DECLARATIONS
 
             ! BEGIN SUBROUTINE
@@ -67,7 +65,7 @@ module evolvePDE
             max_timesteps = int( t_max / dt)
 
             ! estimate output size
-            if ( (size(conf%IC, kind=ip) + 1_ip) * (savenum + 1) > conf%max_save_size) then
+            if ( 8_ip * (size(conf%IC, kind=ip) + 1_ip) * (savenum + 1) > conf%max_save_size) then
                 Print *, "ERROR: Desired output file exceeds maximum file size."
                 Print *, "Desired bytes: ", (size(conf%IC, kind=ip) + 1_ip) * savenum
                 Print *, "Maximum bytes: ", conf%max_save_size
@@ -75,44 +73,20 @@ module evolvePDE
                 ierr = 2
                 return
             end if
+            call save_file%new_file(conf%savefilename, ierr)
 
             file_dimensions = (/ size(conf%IC, 1, kind=HSIZE_T), size(conf%IC, 2, kind=HSIZE_T),&
                     INT(savenum+1, KIND=HSIZE_T)/)
-            chunk_dimensions = file_dimensions
-            chunk_dimensions(3) = 1
+            allocate (t_vec_out(INT(savenum+1, KIND=HSIZE_T)) )
 
-            call h5open_f(hdf5err)
-            if (hdf5err /=0) then
-                Print *, "HDF5 ERROR: error code ", hdf5err
-            end if
-            ! Create a new file using the default properties.
-            call h5fcreate_f(conf%savefilename, H5F_ACC_TRUNC_F, outfile_id, hdf5err)
-            if (hdf5err /=0) then
-                Print *, "HDF5 ERROR: error code ", hdf5err
-            end if
+            t_vec_out = -1.0_rp
+            t_vec_out(1) = 0.0_rp
 
-            ! Create the data space for the binned dataset.
-            call h5screate_simple_f(rank, file_dimensions, dataspacev_id,  hdf5err)
-            if (hdf5err /=0) then
-                Print *, "HDF5 ERROR: error code ", hdf5err
-            end if
-
-            ! Create the chunked dataset.
-            call h5dcreate_f(outfile_id, "data", H5T_NATIVE_DOUBLE, dataspacev_id, dsetv_id, hdf5err)
-            if (hdf5err /=0) then
-                Print *, "HDF5 ERROR: error code ", hdf5err
-            end if
-
-            ! Create the memory space for the selection
-            call h5screate_simple_f(rank, chunk_dimensions, memspace,  hdf5err)
-            if (hdf5err /=0) then
-                Print *, "HDF5 ERROR: error code ", hdf5err
-            end if
-
-            voffset(1:2) = 0
-            vchunkcount = chunk_dimensions
-
-            voffset(3) = -1
+            ! allocate space for result
+            result_space = save_file%allocate_chunked_3D_space("uu", file_dimensions, ierr)
+            ! save grid information
+            call save_file%save_real_vector(conf%x, 'x', ierr)
+            call save_file%save_real_vector(conf%y, 'y', ierr)
 
             ! implicit euler matrices
             allocate (implicit_euler_LU( size(conf%IC, 2) ), STAT=ierr)
@@ -131,7 +105,7 @@ module evolvePDE
             ! plotting parameters
 
             call cpu_time(plot_time)
-            do while (t < t_max)
+            do while (t <= t_max)
 
                 call csr_multiply(Laplacian_CSR, u, u_update1)
                 call scale_columns(u_update1, conf%diffusion_consts)
@@ -144,32 +118,9 @@ module evolvePDE
                 call conf%explicit_rhs(u, x_pass_through, t, u_update2)
 
                 ! BEGIN SAVING
-                if ((timestep * savenum) / max_timesteps > voffset(3)) then
-                    voffset(3) = ((timestep * savenum) / max_timesteps)
-
-                    call h5sselect_hyperslab_f(dataspacev_id, H5S_SELECT_SET_F, voffset, vchunkcount, hdf5err)
-                    if (hdf5err /=0) then
-                        Print *, "HDF5 ERROR: error in h5sselect_hyperslab_f. error code ", hdf5err
-                        return
-                    end if
-
-                    ! Write the data to the dataset.
-                    call h5dwrite_f(dsetv_id, H5T_NATIVE_DOUBLE, reshape(u, chunk_dimensions), chunk_dimensions,&
-                            hdf5err, memspace, dataspacev_id)
-                    if (hdf5err /=0) then
-                        Print *, "HDF5 ERROR: error in h5dwrite_f. error code ", hdf5err
-                        return
-                    end if
-                    call h5sclose_f(dataspacev_id, hdf5err)
-                    if (hdf5err /=0) then
-                        Print *, "HDF5 ERROR: error in h5sclose_f. error code ", hdf5err
-                        return
-                    end if
-                    call h5dget_space_f(dsetv_id, dataspacev_id, hdf5err)
-                    if (hdf5err /=0) then
-                        Print *, "HDF5 ERROR: error in h5dget_space_f. error code ", hdf5err
-                        return
-                    end if
+                if ((timestep * savenum) / max_timesteps > result_space%voffset(3)) then ! sketchy
+                    call result_space%insert_page(u, ierr)
+                    t_vec_out(result_space%voffset(3) + 1) = t
                 end if
                 ! END SAVING
 
@@ -193,11 +144,8 @@ module evolvePDE
                 t = dt * timestep
             end do
 
-            call h5dclose_f(dsetv_id, hdf5err)
-            call h5sclose_f(memspace, hdf5err)
-            call h5fclose_f(outfile_id, hdf5err)
-
-            call h5close_f(hdf5err)
+            call save_file%save_real_vector(t_vec_out, 't', ierr)
+            call save_file%close(ierr)
 
             ! END SUBROUTINE
             return
