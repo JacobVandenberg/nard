@@ -7,7 +7,8 @@ module config_m
     implicit none
     !private
     type config2d
-        real (rp), dimension(:), allocatable :: x, y, diffusion_consts
+        real (rp), dimension(:), allocatable :: x, y, diffusion_consts, DBCx_plus, DBCx_minus, DBCy_plus, DBCy_minus
+        logical, dimension(:), allocatable :: DBCx_plus_mask, DBCx_minus_mask, DBCy_plus_mask, DBCy_minus_mask
         real (rp), dimension(:, :), allocatable :: IC, xx, yy
         real (rp) :: dt, t_max, plot_interval
         integer (ip) :: BCx, BCy, savenum, max_save_size

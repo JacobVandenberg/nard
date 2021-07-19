@@ -1,11 +1,12 @@
 ! Created by  on 11/7/21.
 
 program test_evolvePDE
+    use precision
     use config_m
     use evolvePDE
     implicit none
-    !call test_euler
     call test_euler
+    !call test_euler3D
     contains
         subroutine test_euler
             implicit none
@@ -17,15 +18,26 @@ program test_evolvePDE
             pi = dble(3.14159265358979323846264338327950288419716939937510)
             N = 64_ip
 
-            conf%BCx = 1_ip
-            conf%BCy = 1_ip
+            conf%BCx = 0_ip
+            conf%BCy = 0_ip
+            allocate (conf%DBCy_plus(2), conf%DBCy_minus(2), conf%DBCx_plus(2), conf%DBCx_minus(2))
+            conf%DBCy_plus = real((/ 1, 0 /), kind=rp)
+            conf%DBCy_minus = real((/ 0, 0 /), kind=rp)
+            conf%DBCx_plus = real((/ 0, 0 /), kind=rp)
+            conf%DBCx_minus = real((/ 0, 0 /), kind=rp)
+
+            conf%DBCy_plus_mask = (/ .TRUE., .FALSE./)
+            conf%DBCy_minus_mask = (/ .FALSE., .FALSE. /)
+            conf%DBCx_plus_mask = (/ .True., .FALSE. /)
+            conf%DBCx_minus_mask = (/ .FALSE., .FALSE. /)
+
+
             conf%t_max = 1_ip
             conf%dt = 0.0001_rp
             conf%plot_interval = 5_ip*16_ip
 
             conf%savenum = 1000_ip
             conf%max_save_size = 10000000000_ip ! 10 gb
-            !allocate(conf%savefilename(7))
             conf%savefilename = "test.h5"
 
             allocate(conf%IC(N*N, 2_ip))
@@ -62,14 +74,19 @@ program test_evolvePDE
             real (rp), allocatable, dimension(:, :, :) :: xxx, yyy, zzz
             real (rp) :: pi
             pi = dble(3.14159265358979323846264338327950288419716939937510)
-            N = 30_ip
+            N = 25_ip
 
             conf%BCx = 1_ip
             conf%BCy = 1_ip
             conf%BCz = 1_ip
+
             conf%t_max = 5_ip
             conf%dt = 0.00001_rp
             conf%plot_interval = 5_ip*16_ip
+
+            conf%savenum = 1000_ip
+            conf%max_save_size = 10000000000_ip ! 10 gb
+            conf%savefilename = "test3D.h5"
 
             allocate(conf%IC(N*N*N, 2_ip))
 
@@ -89,6 +106,7 @@ program test_evolvePDE
             conf%IC = conf%IC * 0.00001
             conf%IC(:, 1) = reshape(conf%IC(:, 1) + 0.2+1.3, (/N*N*N/))
             conf%IC(:, 2) = reshape(conf%IC(:, 2) + 1.3 / (1.5*1.5), (/N*N*N/))
+
 
             conf%explicit_rhs => rhs
 

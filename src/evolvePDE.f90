@@ -12,7 +12,6 @@ module evolvePDE
 
     contains
         subroutine IMEX_evolve_impliciteuler_euler_2D (conf, ierr)
-            ! UNDER DEVELOPMENT
             implicit none
 
             ! BEGIN DECLARATIONS
@@ -140,6 +139,27 @@ module evolvePDE
                 ! euler step
                 u = u + dt * (u_update1 + u_update2)
 
+                ! impose boundary conditions
+                ! could be improved by masking the flattened u, and reducing branching
+                do dummy_i = 1, size(conf%IC, 2)
+                    plot_uu = reshape(u(:, dummy_i), shape(conf%xx))
+
+                    if (conf%DBCx_plus_mask(dummy_i)) then
+                        plot_uu(:, size(conf%x, kind=ip)) = conf%DBCx_plus(dummy_i)
+                    end if
+                    if (conf%DBCx_minus_mask(dummy_i)) then
+                        plot_uu(:, 1) = conf%DBCx_minus(dummy_i)
+                    end if
+                    if (conf%DBCy_plus_mask(dummy_i)) then
+                        plot_uu(size(conf%y, kind=ip), :) = conf%DBCy_plus(dummy_i)
+                    end if
+                    if (conf%DBCy_minus_mask(dummy_i)) then
+                        plot_uu(1, :) = conf%DBCy_minus(dummy_i)
+                    end if
+                    u(:, dummy_i) = reshape(plot_uu, (/ size(conf%xx, kind=ip) /))
+                end do
+
+
                 timestep = timestep + 1
                 t = dt * timestep
             end do
@@ -243,12 +263,18 @@ module evolvePDE
             real (rp), allocatable, dimension(:, :, :) :: uuu
             real (rp), allocatable, dimension(:, :) :: u, x_pass_through, u_update1, u_update2, plot_uu,&
                     u_update_temp1, u_update_temp2, xx, yy
+            real (rp), allocatable, dimension(:) :: t_vec_out
             type (gpf) :: gp
             real (rp) :: t_max, t, dt, plot_time, current_time
-            integer (ip) :: timestep, dummy_i
+            integer (ip) :: timestep, dummy_i, savenum, max_timesteps
             type (csr_matrix) :: Laplacian_CSR
             type (coo_matrix) :: Laplacian_COO, Laplacian_COO_temp, eye_temp
             type (sparse_lu_decomposition), dimension(:), allocatable :: implicit_euler_LU
+
+            ! HDF5 variables
+            type (h5file) :: save_file
+            type (chunked_3D_space) :: result_space
+            integer (ip), dimension(3) :: file_dimensions
             ! END DECLARATIONS
 
             ! BEGIN SUBROUTINE
@@ -272,6 +298,14 @@ module evolvePDE
             allocate (u_update2( size(conf%IC, 1), size(conf%IC, 2) ),&
                     u_update_temp1( size(conf%IC, 1), 1 ), u_update_temp2( size(conf%IC, 1), 1 ))
 
+            ! gather info from conf
+            timestep = 0
+            t = dble(0)
+            dt = conf%dt
+            t_max = conf%t_max
+            u = conf%IC
+            savenum = conf%savenum
+
             ! implicit euler matrices
             allocate (implicit_euler_LU( size(conf%IC, 2) ), STAT=ierr)
 
@@ -286,19 +320,60 @@ module evolvePDE
                 implicit_euler_LU(dummy_i) = sparse_lu(Laplacian_COO_temp, ierr)
             end do
 
+            ! initialise saving variables
+            max_timesteps = int( t_max / dt)
 
+            ! estimate output size
+            if ( 8_ip * (size(conf%IC, kind=ip) + 1_ip) * (savenum + 1) > conf%max_save_size) then
+                Print *, "ERROR: Desired output file exceeds maximum file size."
+                Print *, "Desired bytes: ", (size(conf%IC, kind=ip) + 1_ip) * savenum
+                Print *, "Maximum bytes: ", conf%max_save_size
+                Print *, "increase conf%max_save_size or reduce conf%savenum to resolve"
+                ierr = 2
+                return
+            end if
+            call save_file%new_file(conf%savefilename, ierr)
+            if (ierr /= 0) then
+                Print *, "Error in creating file", ierr
+                return
+            end if
 
-            timestep = 0
-            t = dble(0)
-            dt = conf%dt
-            t_max = conf%t_max
-            u = conf%IC
+            file_dimensions = (/ size(conf%IC, 1, kind=HSIZE_T), size(conf%IC, 2, kind=HSIZE_T),&
+                    INT(savenum+1, KIND=HSIZE_T)/)
+            allocate (t_vec_out(INT(savenum+1, KIND=HSIZE_T)), STAT=ierr)
+            if (ierr /= 0) then
+                Print *, "Error in allocating t_vec_out", ierr
+                return
+            end if
 
-            ! plotting parameters
+            t_vec_out = -1.0_rp
+            t_vec_out(1) = 0.0_rp
+
+            ! allocate space for result
+            result_space = save_file%allocate_chunked_3D_space("uu", file_dimensions, ierr)
+            if (ierr /= 0) then
+                Print *, "Error in allocating chunked 3d space", ierr
+                return
+            end if
+            ! save grid information
+            call save_file%save_real_vector(conf%x, 'x', ierr)
+            if (ierr /= 0) then
+                Print *, "Error in saving x", ierr
+                return
+            end if
+            call save_file%save_real_vector(conf%y, 'y', ierr)
+            if (ierr /= 0) then
+                Print *, "Error in saving y", ierr
+                return
+            end if
+            call save_file%save_real_vector(conf%z, 'z', ierr)
+            if (ierr /= 0) then
+                Print *, "Error in saving z", ierr
+                return
+            end if
 
             call cpu_time(plot_time)
-            do while (t < t_max)
-
+            do while (t <= t_max)
                 call csr_multiply(Laplacian_CSR, u, u_update1)
                 call scale_columns(u_update1, conf%diffusion_consts)
                 do dummy_i = 1, size(conf%IC, 2)
@@ -309,6 +384,17 @@ module evolvePDE
 
                 call conf%explicit_rhs(u, x_pass_through, t, u_update2)
 
+                ! BEGIN SAVING
+                if ((timestep * savenum) / max_timesteps > result_space%voffset(3)) then ! sketchy
+                    call result_space%insert_page(u, ierr)
+                    if (ierr /= 0) then
+                        Print *, "Error in inserting page", ierr
+                        return
+                    end if
+                    t_vec_out(result_space%voffset(3) + 1) = t
+                end if
+                ! END SAVING
+
                 ! BEGIN PLOTTING
                 ! TODO: move this to a subroutine
                 call cpu_time(current_time)
@@ -317,7 +403,7 @@ module evolvePDE
                     uuu = reshape(u, shape(conf%xxx))
                     plot_uu(:, :) = uuu(:, :, size(conf%z)/2)
                     call gp%title('u')
-                    call gp%options("set terminal png size 1920,1080; set output 'tests/test_evolvePDE_euler3d.png'")
+                    call gp%options("set terminal png size 1920,1080; set output 'src/tests/test_evolvePDE_euler3d.png'")
                     call gp%contour(xx,yy,plot_uu, palette='jet')
                     call cpu_time(plot_time)
                 end if
@@ -329,6 +415,9 @@ module evolvePDE
                 timestep = timestep + 1
                 t = dt * timestep
             end do
+
+            call save_file%save_real_vector(t_vec_out, 't', ierr)
+            call save_file%close(ierr)
 
             ! END SUBROUTINE
             return

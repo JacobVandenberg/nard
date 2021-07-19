@@ -39,7 +39,7 @@ module data
             integer (ip), intent(out) :: ierr
             class (h5file), intent(inout) :: this
             character (len=*) :: filename
-            integer :: hdf5err
+            integer (kind=4) :: hdf5err
 
             call h5open_f(hdf5err)
             if (hdf5err /= 0) then
@@ -73,14 +73,14 @@ module data
             ! outputs
             integer (ip), intent(out) :: ierr
             ! runtime
-            integer :: hdf5err
+            integer (kind=4) :: hdf5err
             integer (HID_T)  :: space, dset
             type (C_PTR) :: f_ptr
             ! END DECLARATIONS
 
             ! BEGIN SUBROUTINE
             ! Create dataspace.  Setting maximum size to be the current size.
-            call h5screate_simple_f(1, (/ size(vector, kind=ip) /), space, hdf5err)
+            call h5screate_simple_f(int(1, kind=4), (/ size(vector, kind=ip) /), space, hdf5err)
             if (hdf5err /= 0) then
                 ierr = int(hdf5err, kind=ip)
                 return
@@ -121,7 +121,7 @@ module data
 
             integer (ip), intent(out) :: ierr
             class (h5file), intent(inout) :: this
-            integer :: hdf5err
+            integer (kind=4) :: hdf5err
 
             CALL h5fclose_f(this%file_id , hdf5err)
             if (hdf5err /= 0) then
@@ -154,7 +154,7 @@ module data
             character (len=*), intent(in) :: name
 
             ! runtime
-            integer :: hdf5err
+            integer (kind=4) :: hdf5err
             integer (ip), dimension(3) :: chunk_dim
             integer (HSIZE_T), dimension(3) :: chunk_dimensions, voffset, vchunkcount
 
@@ -173,7 +173,7 @@ module data
 
 
             ! Create the data space for the binned dataset.
-            call h5screate_simple_f(3, result%space_dim, result%dataspacev_id,  hdf5err)
+            call h5screate_simple_f(int(3, kind=4), result%space_dim, result%dataspacev_id,  hdf5err)
             if (hdf5err /= 0) then
                 ierr = int(hdf5err, kind=ip)
                 return
@@ -187,7 +187,7 @@ module data
             end if
 
             ! Create the memory space for the selection
-            call h5screate_simple_f(3, result%chunk_dim, result%memspace, hdf5err)
+            call h5screate_simple_f(int(3, kind=4), result%chunk_dim, result%memspace, hdf5err)
             if (hdf5err /= 0) then
                 ierr = int(hdf5err, kind=ip)
                 return
@@ -213,13 +213,12 @@ module data
             real (rp), dimension(:, :), intent(in) :: new_page
             integer (ip), intent(out) :: ierr
 
-            integer :: hdf5err
+            integer (kind=4) :: hdf5err
 
             ! END DECLARATIONS
 
             ! BEGIN SUBROUTINE
-            this%voffset(3) = this%voffset(3)+1
-
+            this%voffset(3) = this%voffset(3)+1_ip
             call h5sselect_hyperslab_f(this%dataspacev_id, H5S_SELECT_SET_F, this%voffset, this%vchunkcount, hdf5err)
             if (hdf5err /=0) then
                 Print *, "HDF5 ERROR: error in h5sselect_hyperslab_f. error code ", hdf5err

@@ -1,5 +1,6 @@
 FC=gfortran
 OUTPREFIX=../bin/
+#MKLROOT=/home/jacob/intel/oneapi/mkl/latest
 FFLAGS=-lhdf5 -lhdf5_fortran
 FDEBUG=-g -Wall -Wextra -fcheck=all -fbacktrace
 FOPTIM=-O3 -fopenmp
@@ -7,18 +8,21 @@ SRC= config_m.f90 diff.f90 evolvePDE.f90 helpers.f90 ogpf.f90 precision.f90 spar
 data.f90
 OBJ=$(SRC:.f90=.o)
 FFLAGS+=$(FOPTIM)
-LIB=usr/lib/x86_64-linux-gnu/hdf5/serial
-INC=usr/include/hdf5/serial
-INC2=./lusol/src
+LIB=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
+
+LIB+= -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_gf_ilp64 -lmkl_gnu_thread -lmkl_core -lgomp -lpthread -lm -ldl
+FFLAGS +=  -fdefault-integer-8  -m64  -I"${MKLROOT}/include"
+
+INC=-I/usr/include/hdf5/serial -I./lusol/src
 
 TESTS = test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata
 
 %.o: %.f90
-	$(FC) $(FFLAGS) -I/$(INC) -I$(INC2) -c $<
+	$(FC) $(FFLAGS) $(LIB) $(INC) -c $<
 
 tests: $(TESTS)
 $(TESTS): $(OBJ) ../bin
-	$(FC) $(OBJ) $(FFLAGS) -L/$(LIB) -I/$(INC) -I$(INC2) -o $(OUTPREFIX)$@ tests/$@.f90
+	$(FC) $(OBJ) $(FFLAGS) $(LIB) $(INC) -o $(OUTPREFIX)$@ tests/$@.f90
 
 ../bin:
 	mkdir ../bin
