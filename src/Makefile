@@ -15,10 +15,12 @@ FFLAGS +=  -fdefault-integer-8  -m64  -I"${MKLROOT}/include"
 
 INC=-I/usr/include/hdf5/serial -I./lusol/src
 
-TESTS = test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata
+TESTS = test_mkl test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata
+NARD_EXE = nard2D
 
 %.o: %.f90
 	$(FC) $(FFLAGS) $(LIB) $(INC) -c $<
+
 
 tests: $(TESTS)
 $(TESTS): $(OBJ) ../bin
@@ -27,13 +29,19 @@ $(TESTS): $(OBJ) ../bin
 ../bin:
 	mkdir ../bin
 
+.PHONY: nard
+nard: $(NARD_EXE)
+$(NARD_EXE): $(OBJ) ../bin user_config.o
+	$(FC) $(OBJ) user_config.o $(FFLAGS) $(LIB) $(INC) -o $(OUTPREFIX)$@ $@.f90
+	rm user_config.o user_config.mod user_config.f90
+
 .PHONY: clean
 clean:
-	rm -f *.o *.mod
+	rm -f *.o *.mod user_config.o user_config.mod user_config.f90
 
 .PHONY: realclean
 realclean:
-	rm -f *.o *.mod ../bin/* ogpf_temp_script.gp
+	rm -f *.o *.mod ogpf_temp_script.gp ../bin/* user_config.o user_config.mod user_config.f90
 	cd lusol && make clean && cd ..
 
 
@@ -45,3 +53,4 @@ evolvePDE.o: config_m.o helpers.o ogpf.o diff.o precision.o lusol/src/lusol.o sp
 lusol/src/lusol.o:
 	cd lusol && make && cd ..
 data.o: precision.o
+user_config.o: $(OBJ)

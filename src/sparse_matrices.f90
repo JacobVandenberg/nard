@@ -17,6 +17,7 @@ module sparse_matrices
 
             procedure, public :: set_value
             procedure, public :: get_value
+            procedure, public :: insert_block
 
     end type coo_matrix
 
@@ -28,10 +29,10 @@ module sparse_matrices
     end type csr_matrix
 
     type sparse_lu_decomposition
-        integer (ip) :: n, m, lena, nelem
-        real (rp), allocatable, dimension(:) :: a, w, parmlu
-        integer (ip), allocatable, dimension(:) :: indc, indr, p, q, lenc, lenr, locc, locr,&
-                iploc, iqloc, ipinv, iqinv, luparm
+        integer (ip) :: n, m, mtype
+        integer (ip), dimension(64) :: pt, iparm
+        integer (ip), allocatable, dimension(:) :: perm
+        type (csr_matrix) :: matrix
     end type sparse_lu_decomposition
 
     contains
@@ -291,6 +292,7 @@ module sparse_matrices
             call move_alloc(jndxout, mat2%jndx)
             call move_alloc(valout, mat2%vals)
             deallocate(key)
+
             ! allocate proper number of elements
             numelout = numel1 + numel2 - duplicates
             allocate (valout(numelout), indxout(numelout), jndxout(numelout), STAT=ierr)
@@ -305,10 +307,10 @@ module sparse_matrices
                     jndxout(current) = mat2%jndx(j)
                     j = j + 1_ip
                 elseif (j > numel2) then
-                    valout(current) = mat2%vals(j)
-                    indxout(current) = mat2%indx(j)
-                    jndxout(current) = mat2%jndx(j)
-                    j = j + 1_ip
+                    valout(current) = mat1%vals(i)
+                    indxout(current) = mat1%indx(i)
+                    jndxout(current) = mat1%jndx(i)
+                    i = i + 1_ip
                 elseif (mat1%indx(i) == mat2%indx(j) .and. mat1%jndx(i) == mat2%jndx(j)) then
                     valout(current) = mat1%vals(i) + mat2%vals(j)
                     indxout(current) = mat1%indx(i)
@@ -486,7 +488,7 @@ module sparse_matrices
 
             ! BEGIN DECLARATIONS
             ! inputs
-            type (coo_matrix), intent(in) :: matrix
+            type (coo_matrix), intent(inout) :: matrix
 
             ! outputs
             integer (ip), intent(out) :: ierr
@@ -494,66 +496,22 @@ module sparse_matrices
             ! END DECLARATIONS
 
             ! BEGIN SUBROUTINE
+            ! unsymmetric real. Might be symmetric for backwards euler, and with only periodic BCS, but not in general
+            return_value%mtype = 11_ip
+            call pardisoinit(return_value%pt, return_value%mtype, return_value%iparm)
 
-            return_value%m = matrix%m
-            return_value%n = matrix%n
-            return_value%nelem = size(matrix%vals)
-            return_value%lena = maxval( (/ 10000_ip, 1000_ip * return_value%nelem, 10_ip*matrix%m, 10_ip*matrix%n /) )
+            return_value%matrix = coo_to_csr(matrix, ierr)
+            allocate (return_value%perm(return_value%matrix%m), STAT=ierr)
 
-            allocate (return_value%a(return_value%lena), return_value%indc(return_value%lena),&
-                    return_value%indr(return_value%lena), STAT=ierr)
-            if (ierr /= 0_ip) then
-                Print *, 'ALLOCATION ERROR'
-                return
-            end if
-            allocate (return_value%p(matrix%m), return_value%q(matrix%n), return_value%lenc(matrix%n),&
-                    return_value%lenr(matrix%m), return_value%locc(matrix%n), return_value%locr(matrix%m),&
-                    return_value%iploc(matrix%n), return_value%iqloc(matrix%m), return_value%ipinv(matrix%m),&
-                    return_value%iqinv(matrix%n), return_value%w(matrix%n), STAT=ierr)
-            if (ierr /= 0_ip) then
-                Print *, 'ALLOCATION ERROR'
-                return
-            end if
-            allocate (return_value%luparm(30_ip), return_value%parmlu(30_ip), STAT=ierr)
-            if (ierr /= 0_ip) then
-                Print *, 'ALLOCATION ERROR'
-                return
-            end if
+            call pardiso( return_value%pt, 1_ip, 1_ip, return_value%mtype, 12_ip,& ! 12 means that we are analysing and factoring
+                    return_value%matrix%m, return_value%matrix%vals, return_value%matrix%rows, return_value%matrix%jndx,&
+                    return_value%perm, 1_ip, return_value%iparm, 1_ip, real((/0/), kind=rp), real((/0/), kind=rp), ierr)
 
-            return_value%luparm = 0_ip
-            return_value%parmlu = dble(0)
-
-            return_value%luparm(1) = 6_ip
-            return_value%luparm(2) = 10_ip
-            return_value%luparm(3) = 5_ip
-            return_value%luparm(8) = 1_ip
-
-            return_value%parmlu(1) = dble(100)
-            return_value%parmlu(2) = dble(10)
-            return_value%parmlu(3) = dble(3.0 * 10**(-13))
-            return_value%parmlu(4) = dble(0.67 * 10**(-11))
-            return_value%parmlu(5) = dble(0.67 * 10**(-11))
-            return_value%parmlu(6) = dble(3.0)
-            return_value%parmlu(7) = dble(0.3)
-            return_value%parmlu(8) = dble(0.5)
-
-            return_value%a(1_ip:return_value%nelem) = matrix%vals(1_ip:return_value%nelem)
-            return_value%indc(1_ip:return_value%nelem) = matrix%indx(1_ip:return_value%nelem)
-            return_value%indr(1_ip:return_value%nelem) = matrix%jndx(1_ip:return_value%nelem)
-
-            Print *, return_value%m, return_value%n, return_value%nelem, return_value%lena
-            Print *, matrix%indx(return_value%nelem), matrix%jndx(return_value%nelem)
-
-            call lu1fac (return_value%m, return_value%n, return_value%nelem, return_value%lena, return_value%luparm,&
-                    return_value%parmlu, return_value%a, return_value%indc, return_value%indr, return_value%p,&
-                    return_value%q, return_value%lenc, return_value%lenr, return_value%locc, return_value%locr,&
-                    return_value%iploc, return_value%iqloc, return_value%ipinv, return_value%iqinv, return_value%w,&
-                    ierr)
             sparse_lu = return_value
             ! END SUBROUTINE
         end function sparse_lu
 
-        subroutine sparse_lu_solve(lu_decompstn, b, x, ierr)
+        function sparse_lu_solve(lu_decompstn, b, ierr)
             !
             ! solves the system A x = b for x, given A is in a sparse lu decomposition
             !
@@ -571,20 +529,76 @@ module sparse_matrices
             ! BEGIN DECLARATIONS
             ! inputs
             type (sparse_lu_decomposition), intent(inout) :: lu_decompstn
-            real (rp), dimension(:, :), intent(inout) :: b
+            real (rp), dimension(:), intent(inout) :: b
 
             ! outputs
-            real (rp), dimension(:, :), intent(out) :: x
+            real (rp), dimension(:), allocatable :: sparse_lu_solve
             integer (ip), intent(out) :: ierr
-
+            ! runtime
             ! END DECLARATION
 
+            ! api should be changed to reduce reshaping
             ! BEGIN SUBROUTINE
-            call lu6sol(5_ip, lu_decompstn%m, lu_decompstn%n, b, x, lu_decompstn%lena, lu_decompstn%luparm,&
-                    lu_decompstn%parmlu, lu_decompstn%a, lu_decompstn%indc, lu_decompstn%indr, lu_decompstn%p,&
-                    lu_decompstn%q, lu_decompstn%lenc, lu_decompstn%lenr, lu_decompstn%locc, lu_decompstn%locr, ierr)
+            allocate (sparse_lu_solve(lu_decompstn%matrix%n), STAT=ierr)
+            if (ierr /= 0_ip) then
+                return
+            end if
+            call pardiso( lu_decompstn%pt, 1_ip, 1_ip, lu_decompstn%mtype, 33_ip,& ! 33 means that we are solving
+                    lu_decompstn%matrix%m, lu_decompstn%matrix%vals, lu_decompstn%matrix%rows, lu_decompstn%matrix%jndx,&
+                    lu_decompstn%perm, 1_ip, lu_decompstn%iparm, 0_ip, b,&
+                    sparse_lu_solve, ierr)
             return
             ! END SUBROUTINE
-        end subroutine sparse_lu_solve
+        end function sparse_lu_solve
+
+        subroutine insert_block(this, block_input, i_offset, j_offset, ierr)
+            !
+            ! inserts a matrix into another matrix.
+            ! inserts block_input into this, with offset i_offset for the column index, and j_offset for the row index.
+            ! an offset of 0, 0 means that the indices of block_input will not be changed.
+            ! if there are overlapping entries, they will be added.
+            !
+            ! INPUTS:
+            !   block_input: the matrix to insert
+            !   i_offset: the offset of the column indices
+            !   j_offset: the offset of the row indices.
+            !   this (inout): the matrix to add to.
+
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            class( coo_matrix ), intent(inout) :: this
+            type (coo_matrix), intent(in) :: block_input
+            integer (ip), intent(in) :: i_offset, j_offset
+
+            ! outputs
+            integer (ip), intent(out) :: ierr
+
+            ! runtime
+            type (coo_matrix) :: temp_matrix
+
+            ! END DECLARATIONS
+
+            ! BEGIN SUBROUTINE
+            temp_matrix = copy_coo_matrix(block_input, ierr)
+
+            ! offset matrix
+            temp_matrix%indx = temp_matrix%indx + i_offset
+            temp_matrix%jndx = temp_matrix%jndx + j_offset
+            temp_matrix%m = temp_matrix%m + i_offset
+            temp_matrix%n = temp_matrix%n + j_offset
+
+            ! add matrices
+
+            call sparse_add(this, temp_matrix, ierr)
+
+            this%n = maxval( (/ temp_matrix%n, this%n /) )
+            this%m = maxval( (/ temp_matrix%m, this%m /) )
+
+            deallocate ( temp_matrix%vals, temp_matrix%indx, temp_matrix%jndx )
+            return
+            ! END SUBROUTINE
+        end subroutine insert_block
 
 end module sparse_matrices

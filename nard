@@ -1,0 +1,5 @@
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+cp $1 $SCRIPTPATH/src/user_config.f90
+(cd $SCRIPTPATH && make nard)
+$SCRIPTPATH/bin/nard2D
+
