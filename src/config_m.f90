@@ -13,7 +13,7 @@ module config_m
         real (rp) :: dt, t_max, plot_interval
         integer (ip) :: BCx, BCy, savenum, max_save_size
         procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
-        character (:), allocatable :: savefilename
+        character (:), allocatable :: savefilename, plotfilename
 
 
     contains
@@ -28,7 +28,7 @@ module config_m
         real (rp) :: dt, t_max, plot_interval
         integer (ip) :: BCx, BCy, BCz, savenum, max_save_size
         procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
-        character (:), allocatable :: savefilename
+        character (:), allocatable :: savefilename, plotfilename
 
 
     contains

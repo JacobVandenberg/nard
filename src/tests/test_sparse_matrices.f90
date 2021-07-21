@@ -23,6 +23,8 @@ program test_sparse_matrices
     call test_csr_multiply
     Print *, 'test_sparse_lu'
     call test_sparse_lu
+    Print *, 'test_insert_block'
+    call test_insert_block
 
     contains
         subroutine test_sparse_kron
@@ -156,8 +158,7 @@ program test_sparse_matrices
             implicit none
             type (coo_matrix) :: mat
             type (sparse_lu_decomposition) :: lu_mat
-            real (rp), dimension(:), allocatable :: x
-            real (rp), dimension(:, :), allocatable :: fx, y
+            real (rp), dimension(:), allocatable :: x, y, fx
             integer (ip) :: N, ierr
             type (gpf) :: gp
 
@@ -169,14 +170,32 @@ program test_sparse_matrices
             call mat%set_value(N, N, dble(1), ierr)
             lu_mat = sparse_lu(mat, ierr)
 
-            allocate (fx(N, 1), y(N, 1))
-            fx(:, 1_ip) = cos(x * 2 * 3.14159265 / dble(N))
-            fx(N, 1_ip) = 0
+            allocate (fx(N))
+            fx(:) = cos(x * 2 * 3.14159265 / dble(N))
+            fx(N) = 0
 
-            call sparse_lu_solve(lu_mat, fx, y, ierr)
+            y = sparse_lu_solve(lu_mat, fx, ierr)
+            Print *, fx, y
             call gp%plot(x, reshape(y, (/N/)))
 
         end subroutine test_sparse_lu
+
+        subroutine test_insert_block
+            implicit none
+            type (coo_matrix) :: mat1, mat2
+
+            integer (ip) :: ierr
+
+            mat1 = speye(4_ip, ierr)
+            mat2 = speye(2_ip, ierr)
+            call mat1%insert_block(mat2, 2_ip, 0_ip, ierr)
+            Print *, mat1%vals! - real( (/ 1, 1, 1, 1 /), kind=rp )
+            Print *, mat1%indx! - int( (/1, 2, 2, 3/), kind=ip )
+            Print *, mat1%jndx! - int( (/1, 2, 3, 4/), kind=ip )
+            Print *, mat1%m! - 3_ip
+            Print *, mat1%n! - 4_ip
+
+        end subroutine test_insert_block
 
 
 end program test_sparse_matrices

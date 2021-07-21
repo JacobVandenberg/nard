@@ -1,4 +1,7 @@
-.DEFAULT: tests
+.DEFAULT: nard
+.PHONY:nard
+nard:
+	cd src && make nard && cd ..
 tests:
 	cd src && make tests && cd ..
 .PHONY: clean
