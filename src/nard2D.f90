@@ -16,6 +16,7 @@ program nard2D
     ! BEGIN PROGRAM
     Print *, "getting user RHS function"
     conf%explicit_rhs => reaction_term
+    conf%diffusivity => diffusivity
 
     Print *, "getting config"
     IF (COMMAND_ARGUMENT_COUNT() /= 1_ip)THEN
@@ -30,8 +31,13 @@ program nard2D
         Print *, "Using IMEX_evolve_CN_heun_2D"
         call IMEX_evolve_CN_heun_2D(conf, ierr)
     elseif (conf%timestepping_method == 1) then
-        Print *, "Using IMEX_evolve_impliciteuler_euler_2D"
-        call IMEX_evolve_impliciteuler_euler_2D(conf, ierr)
+        if (conf%iparams(7) == 1) then
+            Print *, "Using IMEX_evolve_impliciteuler_euler_2D_NAD"
+            call IMEX_evolve_impliciteuler_euler_2D_NAD(conf, ierr)
+        else
+            Print *, "Using IMEX_evolve_impliciteuler_euler_2D"
+            call IMEX_evolve_impliciteuler_euler_2D(conf, ierr)
+        end if
     else
         Print *, "Invalid timestepping method ", conf%timestepping_method,&
                 "Please choose 1 for implicit Euler / Euler or 2 for Crank-Nicholson / Heun"

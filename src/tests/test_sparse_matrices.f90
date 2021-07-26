@@ -25,6 +25,10 @@ program test_sparse_matrices
     call test_sparse_lu
     Print *, 'test_insert_block'
     call test_insert_block
+    Print *, 'test_scale_rows'
+    call test_scale_rows
+    Print *, 'test_sparse_direct_solve'
+    call test_sparse_direct_solve
 
     contains
         subroutine test_sparse_kron
@@ -196,6 +200,47 @@ program test_sparse_matrices
             Print *, mat1%n! - 4_ip
 
         end subroutine test_insert_block
+
+        subroutine test_scale_rows
+            implicit none
+            type (coo_matrix) :: mat1
+            type (csr_matrix) :: mat2, mat3
+            integer (ip) :: ierr
+            real (rp), dimension(6) :: factors
+
+            mat1 = speye(6_ip, ierr)
+            call mat1%set_value( 1_ip, 6_ip, 2.0_rp, ierr)
+            mat2 = coo_to_csr(mat1, ierr)
+
+            factors = real((/ 6, 2, 3, 4, 5, 6 /), kind=rp)
+
+            call csr_scale_rows(mat2, factors)
+            call coo_scale_rows(mat1, factors)
+
+            Print *, mat1%vals
+            mat3 = copy_csr_matrix(mat2, ierr)
+
+        end subroutine test_scale_rows
+
+        subroutine test_sparse_direct_solve
+            implicit none
+            type (coo_matrix) :: mat1
+            type (csr_matrix) :: mat2
+            integer (ip) :: ierr
+            real (rp), allocatable, dimension(:, :) :: x
+            real (rp), allocatable, dimension(:) :: b
+
+            mat1 = speye(6_ip, ierr)
+            call mat1%set_value( 1_ip, 6_ip, 2.0_rp, ierr)
+
+            allocate( b(6_ip) )
+            b = (/ 3, 1, 1, 1, 1, 1 /)
+            allocate (x(6_ip, 1_ip))
+
+            x(:, 1) = sparse_direct_solve(coo_to_csr(mat1, ierr), b, ierr);
+            Print *, x
+        end subroutine test_sparse_direct_solve
+
 
 
 end program test_sparse_matrices

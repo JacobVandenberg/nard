@@ -14,8 +14,9 @@ module config_m
         real (rp), dimension(:, :), allocatable :: IC, xx, yy
         real (rp) :: dt, t_max, plot_interval
         integer (ip) :: BCx, BCy, savenum, max_save_size, timestepping_method
-        procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs
+        procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs, diffusivity
         character (:), allocatable :: savefilename, plotfilename
+        integer (ip), dimension(64) :: iparams
 
 
     contains
@@ -168,6 +169,7 @@ module config_m
             end if
 
             iparams = file_o%read_integer_vector("iparams", ierr)
+            this%iparams = iparams
             if (ierr /= 0) then
                 Print *, "Error in reading iparams"
             end if

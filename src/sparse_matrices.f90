@@ -601,4 +601,126 @@ module sparse_matrices
             ! END SUBROUTINE
         end subroutine insert_block
 
+        subroutine csr_scale_rows(matrix, scaling_factors)
+            !
+            ! scales the rows of a sparse matrix (in csr format)
+            !
+            ! inputs:
+            !   matrix (modified): the sparse matrix to modify
+            !   scaling_factors: the factors to scale each row by (column vector)
+            !
+            implicit none
+            ! BEGIN DECLARATIONS
+            type (csr_matrix), intent(inout) :: matrix
+            real (rp), intent(in), dimension(:) :: scaling_factors
+            ! runtime
+            integer (ip) :: current_row
+            ! END DECLARAIONS
+
+            !$OMP PARALLEL DO
+            do current_row = 1_ip, matrix%m
+                matrix%vals(matrix%rows(current_row):matrix%rows(current_row+1_ip)-1_ip) = &
+                        matrix%vals(matrix%rows(current_row):matrix%rows(current_row+1_ip)-1_ip) *&
+                                scaling_factors(current_row)
+            end do
+            !$OMP END PARALLEL DO
+            return
+        end subroutine csr_scale_rows
+
+        subroutine coo_scale_rows(matrix, scaling_factors)
+            !
+            ! scales the rows of a sparse matrix (in csr format)
+            !
+            ! inputs:
+            !   matrix (modified): the sparse matrix to modify
+            !   scaling_factors: the factors to scale each row by (column vector)
+            !
+            implicit none
+            ! BEGIN DECLARATIONS
+            type (coo_matrix), intent(inout) :: matrix
+            real (rp), intent(in), dimension(:) :: scaling_factors
+            ! runtime
+            integer (ip) :: current_el
+            ! END DECLARAIONS
+
+            !$OMP PARALLEL DO
+            do current_el = 1_ip, size(matrix%vals, kind=ip)
+                matrix%vals(current_el) = matrix%vals(current_el) * scaling_factors(matrix%indx(current_el))
+            end do
+            !$OMP END PARALLEL DO
+            return
+        end subroutine coo_scale_rows
+
+        function copy_csr_matrix(matrix, ierr)
+            !
+            ! creates a new csr_matrix and copies data from matrix
+            !
+            ! inputs:
+            !   matrix: matrix to copy
+            !
+            ! outputs:
+            !   ierr: internal error flag
+            !
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            type (csr_matrix), intent(in) :: matrix
+
+            ! outputs
+            type (csr_matrix) :: copy_csr_matrix
+            integer (ip), intent(out) :: ierr
+
+            ! runtime
+            integer (ip) :: numel
+            ! END DECLARATIONS
+
+            numel = size(matrix%vals)
+            allocate ( copy_csr_matrix%vals(numel), copy_csr_matrix%rows(numel), copy_csr_matrix%jndx(numel), STAT=ierr )
+            if (ierr/=0_ip) then
+                return
+            end if
+            copy_csr_matrix%vals(:) = matrix%vals(:)
+            copy_csr_matrix%rows(:) = matrix%rows(:)
+            copy_csr_matrix%jndx(:) = matrix%jndx(:)
+            copy_csr_matrix%n = matrix%n
+            copy_csr_matrix%m = matrix%m
+            return
+        end function copy_csr_matrix
+
+        function sparse_direct_solve(matrix, b, ierr)
+            !
+            ! solves a system of sparse linear equations described by a csr matrix
+            !
+            ! inputs: matrix: the csr_matrix
+            !   b: the RHS to solve for
+            !
+            ! outputs: ierr: internal error flag
+            implicit none
+            ! BEGIN DECLARATIONS
+            ! inputs
+            type (csr_matrix), intent(in) :: matrix
+            real (rp), dimension(:), intent(inout) :: b
+
+            ! outputs
+            integer (ip) :: ierr
+            real (rp), dimension(:), allocatable :: sparse_direct_solve
+
+            ! runtime
+            integer (ip) :: mtype
+            integer (ip), dimension(64) :: iparm, pt
+            integer (ip), allocatable, dimension(:) :: perm
+
+            ! END DECLARATIONS
+
+            allocate( sparse_direct_solve(matrix%n), perm(matrix%n) )
+
+            mtype = 11_ip
+            call pardisoinit(pt, mtype, iparm)
+
+            call pardiso( pt, 1_ip, 1_ip, mtype, 13_ip,&
+                    matrix%m, matrix%vals, matrix%rows, matrix%jndx,&
+                    perm, 1_ip, iparm, 0_ip, b, sparse_direct_solve, ierr)
+        end function sparse_direct_solve
+
 end module sparse_matrices

@@ -53,11 +53,12 @@ program test_bigdata
 
         end subroutine test_euler
 
-        subroutine rhs(u_in, x_in, t, u_out)
+        subroutine rhs(u_in, x_in, t, u_out, user_params)
             implicit none
             real (rp), dimension(:, :), intent(in) :: u_in, x_in
             real (rp), intent(in) :: t
             real (rp), intent(out), dimension(:, :) :: u_out
+            real (rp), intent(in), dimension(:) :: user_params
 
             real (rp) :: a, b, gamma
 

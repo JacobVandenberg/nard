@@ -38,6 +38,7 @@ $(NARD_EXE): $(OBJ) ../bin
 .PHONY: new
 new: nard user_functions.o
 	$(FC) $(OBJ) user_functions.o $(FFLAGS) $(LIB) $(INC) -o $(OUTPREFIX)nard2D_$(ARGS) nard2D.f90
+	rm -f user_functions.o user_functions.mod user_functions.f90
 
 .PHONY: clean
 clean:
