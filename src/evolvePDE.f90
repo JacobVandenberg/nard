@@ -123,7 +123,7 @@ module evolvePDE
                     u_update1(:, dummy_i) = sparse_lu_solve(implicit_euler_LU(dummy_i), u_update1(:, dummy_i), ierr)
                 end do
 
-                call conf%explicit_rhs(u, x_pass_through, t, u_update2)
+                call conf%explicit_rhs(u, x_pass_through, t, u_update2, conf%user_params)
 
                 ! BEGIN SAVING
                 if ((timestep * savenum) / max_timesteps > result_space%voffset(3)) then ! sketchy
@@ -242,7 +242,7 @@ module evolvePDE
 
                 call csr_multiply(Laplacian_CSR, u, u_update1)
                 call scale_columns(u_update1, dble((/1, 30/)))
-                call conf%explicit_rhs(u, x_pass_through, t, u_update2)
+                call conf%explicit_rhs(u, x_pass_through, t, u_update2, conf%user_params)
 
                 ! BEGIN PLOTTING
                 ! TODO: move this to a subroutine
@@ -399,7 +399,7 @@ module evolvePDE
                     u_update1(:, dummy_i) = sparse_lu_solve(implicit_euler_LU(dummy_i), u_update1(:, dummy_i), ierr)
                 end do
 
-                call conf%explicit_rhs(u, x_pass_through, t, u_update2)
+                call conf%explicit_rhs(u, x_pass_through, t, u_update2, conf%user_params)
 
                 ! BEGIN SAVING
                 if ((timestep * savenum) / max_timesteps > result_space%voffset(3)) then ! sketchy
@@ -507,7 +507,12 @@ module evolvePDE
                 ierr = 2
                 return
             end if
+            Print *, "opening new file: ", conf%savefilename
             call save_file%new_file(conf%savefilename, ierr)
+            if (ierr /=0_ip) then
+                Print *, "Error in opening file, error code: ", ierr
+                return
+            end if
 
             file_dimensions = (/ size(conf%IC, 1, kind=HSIZE_T), size(conf%IC, 2, kind=HSIZE_T),&
                     INT(savenum+1, KIND=HSIZE_T)/)
@@ -554,8 +559,8 @@ module evolvePDE
                     u_cn(:, dummy_i) = sparse_lu_solve(implicit_euler_LU(dummy_i), u_cn(:, dummy_i), ierr)
                 end do
 
-                call conf%explicit_rhs(u, x_pass_through, t, u_heun1)
-                call conf%explicit_rhs(u + conf%dt * u_heun1, x_pass_through, t+conf%dt, u_heun2)
+                call conf%explicit_rhs(u, x_pass_through, t, u_heun1, conf%user_params)
+                call conf%explicit_rhs(u + conf%dt * u_heun1, x_pass_through, t+conf%dt, u_heun2, conf%user_params)
 
                 ! BEGIN SAVING
                 if ((timestep * savenum) / max_timesteps > result_space%voffset(3)) then ! sketchy
@@ -607,7 +612,7 @@ module evolvePDE
                     call gp%options('set terminal png size 4000,4000 font "Helvetica,45"')
                     call gp%options('set size square')
                     !call gp%options('set output "' // trim(timestep_string) // '_' // conf%plotfilename // '"')
-                    call gp%options('set output "' // conf%plotfilename // '"')
+                    call gp%options('set output "' // trim(conf%plotfilename) // '"')
                     call gp%contour(conf%xx,conf%yy,plot_uu, palette='jet')
                     prev_timestep = timestep
                     plot_time = time()
