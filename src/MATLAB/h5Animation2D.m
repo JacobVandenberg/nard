@@ -1,7 +1,7 @@
-function [fname] = h5Animation2D(input_foldername, extra_params)
+function [fname] = h5Animation2D(fname, extra_params)
 %H5ANIMATION2D makes an animation of the results from an h5 file
 %   INPUTS:
-%       input_foldername  (string): the name of the folder where the results are
+%       fname  (string): the name of the results file
 %       extra_params (struct): all extra parameters for making the animation
 %       extra_params.real_time (float): how long the animation should go
 %           for in real time in seconds [DEFAULT: 10.0 seconds]
@@ -23,7 +23,6 @@ function [fname] = h5Animation2D(input_foldername, extra_params)
 %           for the respective chemical species.
 
    
-    fname = strcat(input_foldername, '/results.h5');
     if nargin <2
         extra_params.fps=20;
     end
@@ -157,9 +156,9 @@ function [fname] = h5Animation2D(input_foldername, extra_params)
         
         %frame = getframe(gcf);
         
-        print('-dpng',strcat("-r", string(floor(extra_params.dpi))), strcat(input_foldername, "/temp"))
+        print('-dpng',strcat("-r", string(floor(extra_params.dpi))), strcat(fname, "_temp.png"))
         
-        I = imread(strcat(input_foldername, "/temp.png"));       % read saved image
+        I = imread(strcat(fname, "_temp.png"));       % read saved image
         frame = im2frame(I);              % convert image to frame
         writeVideo(myVideo, frame);
         

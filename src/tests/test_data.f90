@@ -10,13 +10,19 @@ program test_data
     call test_allocate_chunked_3D_space
     Print *, 'test_chunked_3D_space'
     call test_chunked_3D_space
+    Print *, 'test_read_real_vector'
+    call test_read_real_vector
+    Print *, 'test_read_integer_vector'
+    call test_read_integer_vector
+    Print *, 'test_read_string'
+    call test_read_string
 
     contains
         subroutine test_new_file
             implicit none
             type (h5file) :: file
             integer (ip) :: ierr
-            call file%new_file( "src/tests/test.h5", ierr )
+            call file%new_file( "src/tests/test1.h5", ierr )
             Print *, ierr
             call file%close(ierr)
 
@@ -81,5 +87,38 @@ program test_data
 
 
         end subroutine test_chunked_3D_space
+
+        subroutine test_read_real_vector
+            implicit none
+            type (h5file) :: file
+            integer (ip) :: ierr
+            real (rp), dimension(:), allocatable :: rdata
+
+            call file%open_file_readonly("src/tests/test_read.h5", ierr)
+            rdata = file%read_real_vector("rparams", ierr)
+            Print *, rdata
+        end subroutine test_read_real_vector
+        subroutine test_read_integer_vector
+            implicit none
+            type (h5file) :: file
+            integer (ip) :: ierr
+            integer (ip), dimension(:), allocatable :: idata
+
+            call file%open_file_readonly("src/tests/test_read.h5", ierr)
+            idata = file%read_integer_vector("iparams", ierr)
+            Print *, idata
+        end subroutine test_read_integer_vector
+
+        subroutine test_read_string
+            implicit none
+            type (h5file) :: file
+            integer (ip) :: ierr
+            CHARACTER (LEN=100):: sdata
+            !character (len=100,kind=c_char), dimension(:), allocatable :: sdata
+
+            call file%open_file_readonly("src/tests/test_read.h5", ierr)
+            sdata = file%read_string("sparams5", ierr)
+            Print *, sdata
+        end subroutine test_read_string
 
 end program test_data

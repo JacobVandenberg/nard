@@ -1,0 +1,12 @@
+SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
+
+if [ $# -lt 1 ]; then
+  echo "nard2: Non-Autonomous Reaction-Diffusion solver (2D). Usage:"
+  echo "nard2 new [reaction_function.f90] [reaction_name]"
+  echo "nard2 run [reaction_name] [config_file.h5]"
+elif [ $1 == "new" ]; then
+  cp $2 $SCRIPTPATH/src/user_functions.f90
+  (cd $SCRIPTPATH && make new ARGS=$3)
+elif [ $1 == "run" ]; then
+  $SCRIPTPATH/bin/nard2D_$2 $3
+fi

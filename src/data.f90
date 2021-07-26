@@ -13,6 +13,11 @@ module data
         procedure, pass, public :: save_real_vector
         procedure, pass, public :: close
         procedure, pass, public :: allocate_chunked_3D_space
+        procedure, pass, public :: open_file_readonly
+        procedure, pass, public :: read_real_vector
+        procedure, pass, public :: read_integer_vector
+        procedure, pass, public :: read_string
+        procedure, pass, public :: read_real_matrix
 
     end type h5file
 
@@ -245,5 +250,400 @@ module data
             ! END SUBROUTINE
         return
         end subroutine insert_page
+
+        function read_real_vector(this, identifier, ierr)
+            ! reads a real vector from h5 file
+            !
+            ! arguments:
+            !   this: h5file object
+            !   identifier: string telling us what to read from file
+            !   ierr: internal error flag
+            !
+            implicit none
+            ! BEGIN DECLARATIONS
+            ! arguments
+            class (h5file) :: this
+            character (*) :: identifier
+            integer (ip) :: ierr
+            ! output
+            real (rp), dimension(:), allocatable, target :: read_real_vector
+            ! runtime
+            integer (HID_T)  :: space, dset
+            integer (kind=4) :: hdferr
+            integer (HSIZE_T), dimension(1) :: dims, maxdims
+            TYPE(C_PTR) :: f_ptr
+            ! END DECLARATIONS
+
+            ! BEGIN SUBROUTINE
+            call h5open_f(hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening h5 api"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+
+            CALL h5dopen_f (this%file_id, identifier, dset, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            !
+            ! Get dataspace and allocate memory for read buffer.
+            !
+            CALL h5dget_space_f(dset, space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in getting dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL h5sget_simple_extent_dims_f (space, dims, maxdims, hdferr)
+            if (hdferr == int(-1, kind=4)) then
+                Print *, "Error in getting dimensions"
+                Print *, dims, maxdims, hdferr
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+
+            ALLOCATE(read_real_vector(dims(1)), stat=ierr)
+            if (ierr /= 0) then
+                Print *, "Allocation error. Code:", ierr
+            end if
+            !
+            ! Read the data.
+            !
+            f_ptr = C_LOC(read_real_vector(1))
+            CALL h5dread_f( dset, H5T_NATIVE_DOUBLE, f_ptr, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in reading data. Code:", hdferr
+                ierr = int( hdferr,kind=ip)
+                return
+            end if
+            !
+            ! Close and release resources.
+            !
+            CALL h5dclose_f(dset , hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in closing dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL h5sclose_f(space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in closing dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            return
+            ! END SUBROUTINE
+        end function read_real_vector
+
+        function read_integer_vector(this, identifier, ierr)
+            ! reads a real vector from h5 file
+            !
+            ! arguments:
+            !   this: h5file object
+            !   identifier: string telling us what to read from file
+            !   ierr: internal error flag
+            !
+            implicit none
+            ! BEGIN DECLARATIONS
+            ! arguments
+            class (h5file) :: this
+            character (*) :: identifier
+            integer (ip) :: ierr
+            ! output
+            integer (ip), dimension(:), allocatable, target :: read_integer_vector
+            ! runtime
+            integer (HID_T)  :: space, dset
+            integer (kind=4) :: hdferr
+            integer (HSIZE_T), dimension(1) :: dims, maxdims
+            TYPE(C_PTR) :: f_ptr
+            ! END DECLARATIONS
+
+            ! BEGIN SUBROUTINE
+            CALL h5dopen_f (this%file_id, identifier, dset, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            !
+            ! Get dataspace and allocate memory for read buffer.
+            !
+            CALL h5dget_space_f(dset, space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in getting dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL h5sget_simple_extent_dims_f (space, dims, maxdims, hdferr)
+            if (hdferr == int(-1, kind=4)) then
+                Print *, "Error in getting dimensions"
+                Print *, dims, maxdims, hdferr
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+
+            ALLOCATE(read_integer_vector(dims(1)))
+            !
+            ! Read the data.
+            !
+            f_ptr = C_LOC(read_integer_vector(1))
+            CALL h5dread_f( dset, H5T_STD_I64LE, f_ptr, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in reading data"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            !
+            ! Close and release resources.
+            !
+            CALL h5dclose_f(dset , hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in closing dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL h5sclose_f(space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in closing dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            return
+            ! END SUBROUTINE
+        end function read_integer_vector
+
+        function read_string(this, identifier, ierr)
+            ! reads a string from an h5 file
+            !
+            ! arguments:
+            !   this: h5file object
+            !   identifier: what to get from the h5file
+            !   ierr: internal error flag
+            implicit none
+            ! BEGIN DECLARATIONS
+            INTEGER(SIZE_T), parameter :: sdim = 7
+            ! inputs
+            class (h5file) :: this
+            character (*) :: identifier
+            ! outputs
+            integer (ip) :: ierr
+            CHARACTER (LEN=100, kind=c_char) :: read_string
+
+            ! runtime
+            INTEGER(HSIZE_T), DIMENSION(1:1) :: dims
+            INTEGER(HSIZE_T), DIMENSION(1:1) :: maxdims
+            INTEGER (kind=4):: hdferr
+            INTEGER(HID_T)  :: filetype, memtype, space, dset
+            INTEGER(ip) :: str_len
+            TYPE(C_PTR) :: f_ptr
+            type(C_PTR), dimension(:), allocatable, target :: rdata
+            CHARACTER (LEN=100, kind=c_char), pointer :: read_string_pointer
+            ! END DECLARATIONS
+
+            ! BEGIN FUNCTION
+
+            CALL h5dopen_f(this%file_id, identifier, dset, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+
+            !
+            ! Get the datatype.
+            !
+            CALL H5Dget_type_f(dset, filetype, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening filetype"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            !CALL H5Tget_size_f(filetype, str_size, hdferr)
+            !if (hdferr /= 0) then
+            !    Print *, "Error in getting size"
+            !    ierr = int( hdferr,kind=ip )
+            !    return
+            !end if
+            !Print *, str_size
+            !
+            ! Get dataspace and allocate memory for read buffer.
+            !
+            CALL H5Dget_space_f(dset, space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in getting dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL H5Sget_simple_extent_dims_f(space, dims, maxdims, hdferr)
+
+            if (hdferr == int(-1, kind=ip)) then
+                Print *, "Error in getting dimensions", dims, maxdims, hdferr
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            ALLOCATE(rdata(dims(1)))
+
+            !CALL H5Tcopy_f(H5T_FORTRAN_S1, memtype, hdferr)
+            !if (hdferr /= 0) then
+            !    Print *, "Error in copying data"
+            !    ierr = int( hdferr,kind=ip )
+            !    return
+            !end if
+            !CALL H5Tset_size_f(memtype, str_size, hdferr)
+            !if (hdferr /= 0) then
+            !    Print *, "Error in setting size"
+            !    ierr = int( hdferr,kind=ip )
+            !    return
+            !end if
+            !
+            ! Read the data.
+            !
+            f_ptr = C_LOC(rdata(1))
+            CALL H5Dread_f(dset, filetype, f_ptr, hdferr, space)
+            if (hdferr /= 0) then
+                Print *, "Error in reading data"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            call C_F_POINTER( rdata(1), read_string_pointer )
+            str_len = 0_ip
+            do
+                if (read_string_pointer(str_len+1_ip:str_len+1_ip) == C_NULL_CHAR .or. str_len >= 99_ip) exit
+                str_len = str_len + 1_ip
+            end do
+            write (read_string, '(A)') read_string_pointer(1_ip:str_len)
+
+            CALL h5dclose_f(dset , hdferr)
+            CALL h5sclose_f(space, hdferr)
+            CALL H5Tclose_f(filetype, hdferr)
+
+
+            return
+            ! END FUNCTION
+
+        end function read_string
+
+        function read_real_matrix(this, identifier, ierr)
+            ! reads a real vector from h5 file
+            !
+            ! arguments:
+            !   this: h5file object
+            !   identifier: string telling us what to read from file
+            !   ierr: internal error flag
+            !
+            implicit none
+            ! BEGIN DECLARATIONS
+            ! arguments
+            class (h5file) :: this
+            character (*) :: identifier
+            integer (ip) :: ierr
+            ! output
+            real (rp), dimension(:, :), allocatable, target :: read_real_matrix
+            ! runtime
+            integer (HID_T)  :: space, dset
+            integer (kind=4) :: hdferr
+            integer (HSIZE_T), dimension(2) :: dims, maxdims
+            TYPE(C_PTR) :: f_ptr
+            ! END DECLARATIONS
+
+            ! BEGIN SUBROUTINE
+            call h5open_f(hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening h5 api"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+
+            CALL h5dopen_f (this%file_id, identifier, dset, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in opening dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            !
+            ! Get dataspace and allocate memory for read buffer.
+            !
+            CALL h5dget_space_f(dset, space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in getting dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL h5sget_simple_extent_dims_f (space, dims, maxdims, hdferr)
+            if (hdferr == int(-1, kind=4)) then
+                Print *, "Error in getting dimensions"
+                Print *, dims, maxdims, hdferr
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+
+            ALLOCATE(read_real_matrix(dims(1), dims(2)), stat=ierr)
+            if (ierr /= 0) then
+                Print *, "Allocation error. Code:", ierr
+            end if
+            !
+            ! Read the data.
+            !
+            f_ptr = C_LOC(read_real_matrix(1, 1))
+            CALL h5dread_f( dset, H5T_NATIVE_DOUBLE, f_ptr, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in reading data. Code:", hdferr
+                ierr = int( hdferr,kind=ip)
+                return
+            end if
+            !
+            ! Close and release resources.
+            !
+            CALL h5dclose_f(dset , hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in closing dataset"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            CALL h5sclose_f(space, hdferr)
+            if (hdferr /= 0) then
+                Print *, "Error in closing dataspace"
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            return
+            ! END SUBROUTINE
+        end function read_real_matrix
+
+        subroutine open_file_readonly(this, filename, ierr)
+            ! opens a file for read only
+            !
+            ! inputs:
+            !   filename (string): the name of the file to open
+            !   this: h5file
+            !
+            ! outputs:
+            !   ierr: internal error flag
+            !
+            implicit none
+            ! BEGIN DECLARATIONS
+            ! arguments
+            class (h5file) :: this
+            character (*) :: filename
+            integer (ip), intent(out) :: ierr
+            ! runtime
+            integer (kind=4) :: hdferr
+            ! END DECLARATIONS
+            ierr = 0_ip;
+            call h5open_f(hdferr)
+            if (hdferr /= 0) then
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            call h5fopen_f(filename, H5F_ACC_RDONLY_F, this%file_id, hdferr)
+            if (hdferr /= 0) then
+                ierr = int( hdferr,kind=ip )
+                return
+            end if
+            return
+        end subroutine open_file_readonly
 
 end module data

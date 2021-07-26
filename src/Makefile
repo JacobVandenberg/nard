@@ -15,7 +15,7 @@ FFLAGS +=  -fdefault-integer-8  -m64  -I"${MKLROOT}/include"
 
 INC=-I/usr/include/hdf5/serial -I./lusol/src
 
-TESTS = test_mkl test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata
+TESTS = test_mkl test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata test_config_m
 NARD_EXE = nard2D
 
 %.o: %.f90
@@ -31,9 +31,13 @@ $(TESTS): $(OBJ) ../bin
 
 .PHONY: nard
 nard: $(NARD_EXE)
-$(NARD_EXE): $(OBJ) ../bin user_config.o
-	$(FC) $(OBJ) user_config.o $(FFLAGS) $(LIB) $(INC) -o $(OUTPREFIX)$@ $@.f90
-	rm user_config.o user_config.mod user_config.f90
+$(NARD_EXE): $(OBJ) ../bin
+	#$(FC) $(OBJ) user_config.o $(FFLAGS) $(LIB) $(INC) -o $(OUTPREFIX)$@ $@.f90
+	#rm user_config.o user_config.mod user_config.f90
+
+.PHONY: new
+new: nard user_functions.o
+	$(FC) $(OBJ) user_functions.o $(FFLAGS) $(LIB) $(INC) -o $(OUTPREFIX)nard2D_$(ARGS) nard2D.f90
 
 .PHONY: clean
 clean:
@@ -46,7 +50,7 @@ realclean:
 
 
 helpers.o: precision.o
-config_m.o: helpers.o precision.o ogpf.o
+config_m.o: helpers.o precision.o ogpf.o data.o
 sparse_matrices.o: helpers.o precision.o lusol/src/lusol.o
 diff.o: sparse_matrices.o precision.o lusol/src/lusol.o
 evolvePDE.o: config_m.o helpers.o ogpf.o diff.o precision.o lusol/src/lusol.o sparse_matrices.o data.o

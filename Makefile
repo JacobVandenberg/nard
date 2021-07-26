@@ -10,3 +10,5 @@ clean:
 .PHONY: realclean
 realclean:
 	cd src && make realclean && cd ..
+new:
+	cd src && make new && cd ..
