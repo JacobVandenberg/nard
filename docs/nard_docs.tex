@@ -1,0 +1,320 @@
+%! Author = jacob
+%! Date = 31/7/21
+
+% Preamble
+\documentclass[11pt]{article}
+
+% Packages
+\usepackage{amsmath}
+\usepackage{textcomp}
+\usepackage{float}
+\usepackage{hyperref}
+
+\usepackage{listings}
+\lstset{
+  language=bash,
+  basicstyle=\ttfamily
+}
+
+% Document
+
+\title{\texttt{nard} Documentation}
+\author{Jacob Cooper Vandenberg}
+\date{7 August 2021}
+\begin{document}
+    \maketitle
+    \tableofcontents
+
+
+    \section[Introduction]{Introduction}
+    \subsection[What it does]{What it does}
+    \texttt{nard} is a numerical partial differential equations solver for the Reaction-Diffusion equation.
+    It solves the Reaction-Diffusion equation, written in the following form.
+    \begin{gather}
+        \frac{\partial \mathbf{u} }{\partial \mathbf{t}} = \mathsf{D}(\mathbf{u}, \mathbf{x}, t)\nabla^2 \mathbf{u} + \mathbf{F}(\mathbf{u}, \mathbf{x}, t)
+    \end{gather}
+    In this equation, \(\mathsf{D}\) is a user supplied function referring to the diffusion constant at a given point in space and time, and can depend on the chemical concentration. \(\mathbf{F}\) is a user supplied function which determined the reaction term. \(\mathbf{u}\) is a vector of concentrations, and this is the function being solved for. \(\mathbf{x}\) and \(t\) are the space and time coordinates respectively. \(\nabla^2\) is the Laplacian operator.
+
+    Currently it only works in two spatial dimensions, but three spatial dimensions will be implemented.
+    Currently advection is not supported, but this is to be implemented in future.
+
+    % note: if \mathsf{D} depends on u, does this cause timestepping issues?
+
+    \subsection{Time discretisation}
+    \texttt{nard} currently has two options for time stepping methods. Both are IMEX (Implicit-Explicit) methods, which means that part of the equation is handled by an implicit Runge-Kutta method, and part of the equation is handled by an explicit Runge-Kutta method. The diffusion term is handled by the implicit method to improve stability, and the reaction term is handled by the explicit method to improve versatility and computational cost.
+    The following table shows the time stepping methods.
+
+        {\centering\begin{table}[H]
+             \begin{tabular}{c | c | c | c}
+             Reference \# & Implicit Method & Explicit method & Order \\
+             \hline
+             1            & Backwards Euler & Euler           & 1     \\
+             2            & Heun            & Crank-Nicolson  & 2
+    \end{tabular}\label{tab:table1}
+    \end{table}}
+
+    To choose which timestepping method you want, you will set \texttt{iparms(6)} to the Reference number of the desired method.
+
+    \subsection{Space discretisation}
+    \texttt{nard} uses the standard Finite-Difference approximation for the Laplacian operator. This is order 2, and allows for great flexibility with the timestep size.
+
+    \section[Installation]{Installation}
+    \subsection[Prerequisites]{Prerequisites}
+    \texttt{nard} has been tested and developed on 64 bit Linux (Ubuntu 20.04). In order to install \texttt{nard}, you need to have the following packages installed and added to PATH.
+    \begin{itemize}
+        \item \texttt{gfortran}
+        \item \texttt{gnuplot}
+        \item OpenMP
+        \item Intel MKL
+        \item HDF5
+    \end{itemize}
+
+    \subsection[Installation]{Installation}
+    To install, first clone into the \texttt{nard} project (found \href{https://github.com/JacobVandenberg/nard}{here}).
+
+    \begin{lstlisting}[label={lst:clone}]
+        git clone git@github.com:JacobVandenberg/nard.git
+    \end{lstlisting}
+
+    \texttt{cd} into the created folder and make the tests to initialise nard.
+    This is not necessary, but this this will help to verify that the installation is correct.
+    \begin{lstlisting}[label={lst:cd}]
+        cd nard
+        make tests
+    \end{lstlisting}
+
+    It is also recommended to add \texttt{nard} to the PATH.
+    This can be done by adding the following line to the end of your \texttt{.bashrc} file (found at \texttt{~/.bashrc}).
+    (replace '\texttt{path/to}' with the full path to the enclosing folder). Restart bash to take effect.
+    \begin{lstlisting}[label={lst:path}]
+        export PATH=path/to/nard:$PATH
+    \end{lstlisting}
+
+    \section[Usage]{Usage}
+    \texttt{nard2} is the solver which utilises 2 spatial dimensions and has two options, \texttt{new} and \texttt{run}.
+    \subsection[\texttt{nard2 new}]{\texttt{nard2 new}}
+    Usage:
+    \begin{lstlisting}
+        nard2 new [function_file.f90] [reaction name]
+    \end{lstlisting}
+    Here \texttt{[function\_file.f90]} is the path to the fortran file which contains the functions specifying the reaction term and the diffusion matrix.
+    \texttt{[reaction name]} is the name the user assigns the reaction, and will be used by the user when running the reaction eith a config.
+    Best not to use special characters, especially space or sny slash characters because this will be used as a filename.
+    Numbers, letters and underscores should be ok.
+    Using the same name as a previous reaction will overwrite the previous reaction.
+
+    \subsection[\texttt{nard2 run}]{\texttt{nard2 run}}
+    Usage:
+    \begin{lstlisting}
+        nard2 run [reaction name] [config.h5]
+    \end{lstlisting}
+    This will run nard with the reaction name (as specified when making the new reaction), and a config file (which is in the .h5) format.
+    The specifications of the config file are given in~\ref{sec:config_file}
+
+    \section[Config File Specifications]{Config File Specifications}
+    \label{sec:config_file}
+    The config file is an h5 file, with a number of datasets, as follows.
+    MATLAB code is provided for writing h5 config files. A config \texttt{struct} should be made with values associated with the same name and value as teh corresponding h5 file.
+    \begin{table}
+        \centering
+        \caption{Config File Specifications}
+        \label{tab:config}
+        \begin{tabular}{c | c | c}
+            Handle & Type & Explanation\\
+            \hline
+            \texttt{"x"} & 1D vector  & Grid points along the x axis. \\
+            & of \texttt{float64} &  Must be equispaced.\\
+            \hline
+            \texttt{"y"} & 1D vector  & Grid points along the x axis. \\
+            & of \texttt{float64} &  Must be equispaced.\\
+            \hline
+            \texttt{"diffusion\_consts"} & 1D vector  & If diffusion is autonomous, \\
+            & of \texttt{float64} & we can specify diffusion\\
+            & & constants like this. Ensure that\\
+            & & \texttt{iparams(7)} is set to 0 \\
+            & & to take advantage of\\
+            & & autonomous diffusion\\
+            \hline
+            \texttt{"user\_params"} & 1D vector  & User definable parameters which are \\
+            & of \texttt{float64} &  passed into the diffusion and reaction functions.\\
+            \hline
+            \texttt{"rparams"} & Length 64 & Assorted real parameters, as defined in~\ref{tab:rparams}\\
+            & 1D vector & \\
+            & of \texttt{float64} & \\
+            \hline
+            \texttt{"iparams"} & Length 64 & Assorted integer parameters, as defined in~\ref{tab:iparams}\\
+            & 1D vector & \\
+            & of \texttt{int64} & \\
+            \hline
+            \texttt{"DCBx\_plus"} & 1D vector & Vector of floats specifying \\
+            & of \texttt{float64} & the value of the fixed Dirichlet \\
+            & & boundary condition on the positive \(x\) boundary \\
+            \hline
+            \texttt{"DCBx\_minus"} & 1D vector & Vector of floats specifying \\
+            & of \texttt{float64} & the value of the fixed Dirichlet \\
+            & & boundary condition on the negative \(x\) boundary \\
+            \hline
+            \texttt{"DCBy\_plus"} & 1D vector & Vector of floats specifying \\
+            & of \texttt{float64} & the value of the fixed Dirichlet \\
+            & & boundary condition on the positive \(y\) boundary \\
+            \hline
+            \texttt{"DCBy\_minus"} & 1D vector & Vector of floats specifying \\
+            & of \texttt{float64} & the value of the fixed Dirichlet \\
+            & & boundary condition on the negative \(y\) boundary \\
+            \hline
+            \texttt{"DCBx\_plus\_mask"} & 1D vector & Vector of booleans specifying \\
+            & of \texttt{int64} (0/1) & True if there is a fixed Dirichlet \\
+            & & boundary condition on the positive \(x\) boundary \\
+            \hline
+            \texttt{"DCBx\_minus\_mask"} & 1D vector & Vector of booleans specifying \\
+            & of \texttt{int64} (0/1) & True if there is a fixed Dirichlet \\
+            & & boundary condition on the negative \(x\) boundary \\
+
+        \end{tabular}
+    \end{table}
+
+    \begin{table}
+        \centering
+        \begin{tabular}{c | c | c}
+            Handle & Type & Explanation\\
+            \hline
+            \texttt{"DCBy\_plus\_mask"} & 1D vector & Vector of booleans specifying \\
+            & of \texttt{int64} (0/1) & True if there is a fixed Dirichlet \\
+            & & boundary condition on the positive \(y\) boundary \\
+            \hline
+            \texttt{"DCBy\_minus\_mask"} & 1D vector & Vector of booleans specifying \\
+            & of \texttt{int64} (0/1) & True if there is a fixed Dirichlet \\
+            & & boundary condition on the negative \(y\) boundary \\
+            \hline
+            \texttt{"IC"} & 2D matrix & Matrix of floats specifying \\
+            & of \texttt{float64} & the initial conditions\\
+            \hline
+            \texttt{"savefilename"} & string & gives the path for the save file \\
+            \hline
+            \texttt{"plotfilename"} & string & gives the path for the plot png file
+        \end{tabular}
+    \end{table}
+
+
+    \begin{table}
+        \centering
+        \caption{\texttt{rparams} specifications}
+        \label{tab:rparams}
+        \begin{tabular}{c | c | c}
+            Parameter & Typical value & Explanation\\
+            \hline
+            \texttt{rparam(1)} & Depends on problem & \(dt\): the timestep interval.\\
+            & & Dictates how much time elapses between each time step.\\
+            \hline
+            \texttt{rparam(2)} & Depends on problem & Maximum time: changes upper bound of\\
+            & &  the time interval solved over. Should be significantly\\
+            & &  larger than \(dt\)\\
+            \hline
+            \texttt{rparam(3)} & 10.0 - 60.0 & Plot interval (seconds): how often\\
+            & &  (in real time) the solution is plotted.\\
+        \end{tabular}
+    \end{table}
+
+    \begin{table}
+        \centering
+        \caption{\texttt{iparams} specifications}
+        \label{tab:iparams}
+        \begin{tabular}{c | c | c}
+            Parameter & Typical value & Explanation\\
+            \hline
+            \texttt{iparams(1)} & 100 - 1000 & Number of saved timesteps.\\
+            & &  If this is larger than the total number of time steps,\\
+            & & then all timesteps are saved.\\
+            \hline
+            \texttt{iparams(2)} & \(10^{10}\) & Maximum save size in bytes.\\
+            & & Safety factor to prevent very large files.\\
+            \hline
+            \texttt{iparams(3)} & 0 & 1 for periodic boundary conditions in \(x\).\\
+            \hline
+            \texttt{iparams(4)} & 0 & 1 for periodic boundary conditions in \(y\).\\
+            \hline
+            \texttt{iparams(5)} & 0 & 1 for periodic boundary conditions in \(z\).\\
+            \hline
+            \texttt{iparams(6)} & 1 & Time stepping method.\\
+            & & See Table~\ref{tab:table1}.\\
+            \hline
+            \texttt{iparams(7)} & 0 & 1 is for if diffusion is non-autonomous.\\
+        \end{tabular}
+    \end{table}
+
+    \section[User Function Specifications]{User Function Specifications}
+    To specify the functions in the reaction diffusion equation, as follows, we will provide them in a \texttt{fortran} file.
+    \begin{gather}
+        \frac{\partial \mathbf{u} }{\partial \mathbf{t}} = \mathsf{D}(\mathbf{u}, \mathbf{x}, t)\nabla^2 \mathbf{u} + \mathbf{F}(\mathbf{u}, \mathbf{x}, t).
+    \end{gather}
+    Example files are provided in \texttt{nard/src/user\_functions}.
+    To specify a new reaction scheme you need to provide a single \texttt{fortran} file which defines a \texttt{module user\_functions}.
+    This module will \texttt{use precision}, and \texttt{contains} two subroutines.
+    The subroutine \texttt{reaction\_term} will specify the function \(F\), and the subroutine \texttt{diffusivity} implements the function \(\mathsf{D}\).
+    The arguments of both functions are identical, both functions take 4 arguments, as follows.
+    \begin{itemize}
+        \item \texttt{u\_in}: the concentration of each chemical at each gridpoint.
+        Each column specifies a different chemical.
+        So chemical 1 can be accessed with \texttt{u\_in(:, 1)}.
+        In general, the concentration of chemical \(j\) at gridpoint \(i\) is stored in \texttt{u\_in(i, j)}.
+        \item \texttt{x\_in}: specifies the grid values. Each column is a flattened \texttt{meshgrid}.
+        ~\texttt{x\_in(1, j)} contains the \(x\) coordinate of the \(j\)-th grid point.
+        Correspondingly~\texttt{x\_in(2, j)} are the \(y\)-coordinates.
+        \item \texttt{t}: This is the time.
+        \item \texttt{u\_out}: This is the output variable. It has the same format as \texttt{u\_in}.
+        \item \texttt{user\_params}: This is a constant 1D array of reals which is passed though from the config file, and is defined by the user.
+    \end{itemize}
+
+
+    \section[MATLAB Functions]{MATLAB Functions}
+    MATLAB functions can be found in \texttt{nard/bin/MATLAB}.
+    Here the following 3 functions can be found.
+    \begin{itemize}
+        \item \texttt{h5Animation2D}
+        \item \texttt{nard2}
+        \item \texttt{write\_config}
+    \end{itemize}
+    
+    \subsection[\texttt{h5Animation2D}]{\texttt{h5Animation2D}}
+    This function makes an animated heatmap plot for a given results file~\texttt{fname}.
+    Extra plotting parameters can be paeed in using a struct~\texttt{extra\_params}
+    Usage:\\
+    \texttt{h5Animation2D(fname, extra\_params)}\\
+    Arguments:
+    \begin{itemize}
+        \item[\texttt{fname}:] this if the filename of the h5 file which contains the results.
+        \item[\texttt{extra\_params}:] this is a \texttt{struct} with the following possible entries.
+        \begin{itemize}
+            \item[extra\_params.real\_time] (float): how long the animation should go for in real time in seconds [DEFAULT: 10.0 seconds]
+            \item[extra\_params.sim\_interval] (float, size = (2,)): time intervals between which the result should be animated (inclusive). [DEFAULT: full range of t values]
+            \item[extra\_params.fps] (float): the frames per second of the output animation [DEFAULT: 20 fps]
+            \item[extra\_params.dpi] (int): the dots per inch of the output animation [DEFAULT: 200]
+            \item[extra\_params.interpolate\_resolution] (int, size = (2,)): whether to interpolate the result to a finer mesh before plotting. Set to 0, or set one of the values to 0 to prevent interpolation. [DEFAULT: 0]
+            \item[extra\_params.range\_max] (float, size =(\{\# of chemical species\},)): sets the scale of the plot. Each value is the maximum of the range for the respective chemical species.
+            \item[extra\_params.range\_min] (float, size =(\{\# of chemical species\},)): sets the scale of the plot. Each value is the minimum of the range for the respective chemical species.
+        \end{itemize}
+    \end{itemize}
+
+    \subsection[\texttt{nard2}]{\texttt{nard2}}
+    This is a wrapper for the \texttt{nard2 run} terminal command.
+    Usage:\\
+    \texttt{nard2(reaction\_name, config)}\\
+    Arguments:
+    \begin{itemize}
+        \item[reaction\_name] (string): the name of the reaction name, which was given to \texttt{nard} when \texttt{nard2 new} was called.
+        \item[config] (string): the filename of the config file to pass to \texttt{nard}.
+    \end{itemize}
+
+    \subsection[\texttt{write\_config}]{\texttt{write\_config}}
+    This writes a config, specified using a MATLAB \texttt{struct} into an h5 file for use by \texttt{nard}.
+    Usage:\\
+    \texttt{write\_config(conf, filename, force)}\\
+    Arguments:
+    \begin{itemize}
+        \item[\texttt{conf}] (struct): The config struct object. An example of one of these can be found in
+        \item[\texttt{filename}] (string): the filename of the config file to pass to \texttt{nard}.
+        \item[\texttt{force}] (logical): Force the function to overwrite any existing config with the same filename.
+    \end{itemize}
+
+
+\end{document}

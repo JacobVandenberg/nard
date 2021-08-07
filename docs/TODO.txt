@@ -1,7 +1,4 @@
-1. fix up 3d code for dirichlet boundary conditions
-
-2. CN-Heun timestepping
+1. fix up 3d code
 5. test convergence & pattern production
 7. Documentation & simplify input
-8. non-autonomous diffusion
 9. advection

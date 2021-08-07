@@ -505,7 +505,7 @@ module sparse_matrices
 
             call pardiso( return_value%pt, 1_ip, 1_ip, return_value%mtype, 12_ip,& ! 12 means that we are analysing and factoring
                     return_value%matrix%m, return_value%matrix%vals, return_value%matrix%rows, return_value%matrix%jndx,&
-                    return_value%perm, 1_ip, return_value%iparm, 1_ip, real((/0/), kind=rp), real((/0/), kind=rp), ierr)
+                    return_value%perm, 1_ip, return_value%iparm, 0_ip, real((/0/), kind=rp), real((/0/), kind=rp), ierr)
 
             sparse_lu = return_value
             ! END SUBROUTINE
@@ -719,6 +719,9 @@ module sparse_matrices
             call pardisoinit(pt, mtype, iparm)
 
             call pardiso( pt, 1_ip, 1_ip, mtype, 13_ip,&
+                    matrix%m, matrix%vals, matrix%rows, matrix%jndx,&
+                    perm, 1_ip, iparm, 0_ip, b, sparse_direct_solve, ierr)
+            call pardiso( pt, 1_ip, 1_ip, mtype, -1_ip,&
                     matrix%m, matrix%vals, matrix%rows, matrix%jndx,&
                     perm, 1_ip, iparm, 0_ip, b, sparse_direct_solve, ierr)
         end function sparse_direct_solve

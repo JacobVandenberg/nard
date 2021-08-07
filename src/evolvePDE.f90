@@ -472,7 +472,6 @@ module evolvePDE
             plot_time = time()
             Print *, "Evolving in time"
             do while (t <= t_max)
-
                 call csr_multiply(Laplacian_CSR, u, u_cn)
                 u_cn( size(conf%IC, 1_ip, kind=ip)+1 : 2*size(conf%IC, 1_ip, kind=ip), : ) &
                         = u_cn( 1_ip : size(conf%IC, 1_ip, kind=ip), : )
@@ -567,7 +566,7 @@ module evolvePDE
             type (gpf) :: gp
             real (rp) :: t_max, t, dt, plot_time, current_time
             integer (ip) :: timestep, dummy_i, max_timesteps, savenum, prev_timestep, plot_number
-            type (csr_matrix) :: Laplacian_CSR
+            type (csr_matrix) :: Laplacian_CSR, Laplacian_CSR_temp
             type (coo_matrix) :: Laplacian_COO, Laplacian_COO_temp, eye_temp
             type (csr_matrix), dimension(:), allocatable :: implicit_system
             character (len=1024) :: timestep_string
@@ -628,7 +627,12 @@ module evolvePDE
 
                     eye_temp = speye(Laplacian_COO_temp%n, ierr)
                     call sparse_add(Laplacian_COO_temp, eye_temp, ierr)
-                    u_update1(:, dummy_i) = sparse_direct_solve(coo_to_csr(Laplacian_COO_temp, ierr), u_update1(:, dummy_i), ierr)
+                    Laplacian_CSR_temp = coo_to_csr(Laplacian_COO_temp, ierr)
+                    u_update1(:, dummy_i) = sparse_direct_solve(Laplacian_CSR_temp, u_update1(:, dummy_i), ierr)
+
+                    deallocate (Laplacian_COO_temp%vals, Laplacian_COO_temp%indx, Laplacian_COO_temp%jndx)
+                    deallocate (Laplacian_CSR_temp%vals, Laplacian_CSR_temp%rows, Laplacian_CSR_temp%jndx)
+                    deallocate(eye_temp%vals, eye_temp%indx, eye_temp%jndx)
                 end do
 
                 call conf%explicit_rhs(u, x_pass_through, t, u_update2, conf%user_params)
@@ -654,6 +658,117 @@ module evolvePDE
 
         end subroutine IMEX_evolve_impliciteuler_euler_2D_NAD
 
+        subroutine IMEX_evolve_CN_heun_2D_NAD (conf, ierr)
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            type (config2d), intent(inout) :: conf
+            integer (ip) :: ierr
+
+            ! runtime variables
+            real (rp), allocatable, dimension(:, :) :: u, x_pass_through, u_heun1, u_heun2, u_cn1, u_cn2, plot_uu,&
+                    diff_const_field
+            real (rp), allocatable, dimension(:) :: t_vec_out
+            type (gpf) :: gp
+            real (rp) :: t_max, t, dt, plot_time, current_time
+            integer (ip) :: timestep, dummy_i, max_timesteps, savenum, prev_timestep, plot_number
+            type (csr_matrix) :: Laplacian_CSR, Laplacian_CSR_temp
+            type (coo_matrix) :: Laplacian_COO, Laplacian_COO_temp, eye_temp
+            type (csr_matrix), dimension(:), allocatable :: implicit_system
+            character (len=1024) :: timestep_string
+
+            ! HDF5 variables
+            type (h5file) :: save_file
+            type (chunked_3D_space) :: result_space
+            integer (ip), dimension(3) :: file_dimensions
+            ! END DECLARATIONS
+
+            ! BEGIN SUBROUTINE
+
+            ! initialise grid
+            include "evolvePDE_initgrid2D.f90"
+
+            ! initialise runge kutta variables
+            Print *, "Allocating u and u update variables", size(conf%IC, 1), size(conf%IC, 2), size(conf%xx, 1), size(conf%xx, 2)
+            allocate (u( size(conf%IC, 1), size(conf%IC, 2) ), u_heun1( size(conf%IC, 1), size(conf%IC, 2) ), &
+                    u_heun2( size(conf%IC, 1), size(conf%IC, 2) ))
+            allocate ( u_cn1(size(conf%IC, 1), size(conf%IC, 2)), u_cn2(size(conf%IC, 1), size(conf%IC, 2)) )
+            allocate (plot_uu( size(conf%xx, 1), size(conf%xx, 2) ))
+
+            allocate (diff_const_field( size(conf%IC, 1), size(conf%IC, 2) ))
+
+            include "evolvePDE_init_common_2d.f90"
+
+
+            ! implicit euler matrices
+
+
+            ! plotting parameters
+
+            prev_timestep = 0_ip
+            plot_number = 0_ip
+            plot_time = time()
+            Print *, "Evolving in time IMEX_evolve_CN_heun_2D_NAD"
+            ! calculate initial diffusivity values
+            call conf%diffusivity(u, x_pass_through, t, diff_const_field, conf%user_params)
+            do while (t <= t_max)
+
+                ! BEGIN SAVING
+                if ((timestep * savenum) / max_timesteps > result_space%voffset(3)) then ! sketchy
+                    call result_space%insert_page(u, ierr)
+                    t_vec_out(result_space%voffset(3) + 1) = t
+                end if
+                ! END SAVING
+
+
+
+                call csr_multiply(Laplacian_CSR, u, u_cn1)
+                u_cn1 = u_cn1 * diff_const_field
+
+                do dummy_i = 1, size(conf%IC, 2)
+                    ! update diffusivity
+                    call conf%diffusivity(u, x_pass_through, (timestep+1_ip)*conf%dt, diff_const_field,&
+                            conf%user_params)
+                    Laplacian_COO_temp = copy_coo_matrix(Laplacian_COO, ierr)  ! potential memory leak here
+                    call coo_scale_rows(Laplacian_COO_temp, diff_const_field(:, dummy_i) * (-1.0_rp/2.0_rp) * conf%dt)
+
+                    eye_temp = speye( Laplacian_COO_temp%n, ierr )
+                    call sparse_add(Laplacian_COO_temp, eye_temp, ierr)
+                    Laplacian_CSR_temp = coo_to_csr(Laplacian_COO_temp, ierr)
+
+                    call csr_multiply(Laplacian_CSR, u + u_cn1 * 0.5_rp*dt, u_cn2)
+                    u_cn2(:, dummy_i) = diff_const_field(:, dummy_i) * u_cn2(:, dummy_i)
+                    u_cn2(:, dummy_i) = sparse_direct_solve(Laplacian_CSR_temp, u_cn2(:, dummy_i), ierr)
+
+                    deallocate (Laplacian_COO_temp%vals, Laplacian_COO_temp%indx, Laplacian_COO_temp%jndx)
+                    deallocate (Laplacian_CSR_temp%vals, Laplacian_CSR_temp%rows, Laplacian_CSR_temp%jndx)
+                    deallocate(eye_temp%vals, eye_temp%indx, eye_temp%jndx)
+                end do
+
+                call conf%explicit_rhs(u, x_pass_through, t, u_heun1, conf%user_params)
+                call conf%explicit_rhs(u + conf%dt * u_heun1, x_pass_through, t+conf%dt, u_heun2, conf%user_params)
+
+                ! euler step
+                u = u + dt/2.0_rp * (u_heun1 + u_heun2 + u_cn1 + u_cn2)
+
+                include "evolvePDE_BC2D.f90"
+
+                timestep = timestep + 1
+                t = dt * timestep
+
+                include "evolvePDE_plotting2D.f90"
+                ! END PLOTTING
+            end do
+
+            call save_file%save_real_vector(t_vec_out, 't', ierr)
+            call save_file%close(ierr)
+
+            ! END SUBROUTINE
+            return
+
+
+        end subroutine IMEX_evolve_CN_heun_2D_NAD
 end module evolvePDE
 
 

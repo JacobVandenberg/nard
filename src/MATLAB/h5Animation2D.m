@@ -37,7 +37,8 @@ function [fname] = h5Animation2D(fname, extra_params)
         time_index_start = 1; % time index start
         
         info = h5info(fname, "/t");
-        time_index_end = info.Dataspace.Size;
+        [~, time_index_end] = max(flipud(t)>=0);
+        time_index_end = info.Dataspace.Size - time_index_end + 1;
     else
         % check that time values are in range
         if extra_params.sim_interval(1) < 0
@@ -45,9 +46,10 @@ function [fname] = h5Animation2D(fname, extra_params)
         end
         
         info = h5info(fname, "/t");
-        
-        
-        if extra_params.sim_interval(2) > h5read(fname, "/t", double(info.Dataspace.Size), double(1))
+        [~, time_index_end] = max(flipud(t)>=0);
+        time_index_end = info.Dataspace.Size - time_index_end + 1;
+        if extra_params.sim_interval(2) > h5read(fname, "/t", double(time_index_end), double(1))
+            size(h5read(fname, "/t"))
             error("extra_params.sim_interval(2) out of range")
         end
         [~, time_index_start] = max(t >= extra_params.sim_interval(1));

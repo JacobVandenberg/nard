@@ -28,8 +28,14 @@ program nard2D
 
     Print *, "evolving PDE"
     if (conf%timestepping_method == 2) then
-        Print *, "Using IMEX_evolve_CN_heun_2D"
-        call IMEX_evolve_CN_heun_2D(conf, ierr)
+
+        if (conf%iparams(7) == 1) then
+            Print *, "Using IMEX_evolve_CN_heun_2D_NAD"
+            call IMEX_evolve_CN_heun_2D_NAD(conf, ierr)
+        else
+            Print *, "Using IMEX_evolve_CN_heun_2D"
+            call IMEX_evolve_CN_heun_2D(conf, ierr)
+        end if
     elseif (conf%timestepping_method == 1) then
         if (conf%iparams(7) == 1) then
             Print *, "Using IMEX_evolve_impliciteuler_euler_2D_NAD"
