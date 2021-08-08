@@ -33,7 +33,7 @@
     \begin{gather}
         \frac{\partial \mathbf{u} }{\partial \mathbf{t}} = \mathsf{D}(\mathbf{u}, \mathbf{x}, t)\nabla^2 \mathbf{u} + \mathbf{F}(\mathbf{u}, \mathbf{x}, t)
     \end{gather}
-    In this equation, \(\mathsf{D}\) is a user supplied function referring to the diffusion constant at a given point in space and time, and can depend on the chemical concentration. \(\mathbf{F}\) is a user supplied function which determined the reaction term. \(\mathbf{u}\) is a vector of concentrations, and this is the function being solved for. \(\mathbf{x}\) and \(t\) are the space and time coordinates respectively. \(\nabla^2\) is the Laplacian operator.
+    In this equation, \(\mathsf{D}\) is a user supplied function referring to the diffusion constant at a given point in space and time, and can depend on the chemical concentration. \(\mathbf{F}\) is a user supplied function which determines the reaction term. \(\mathbf{u}\) is a vector of concentrations, and this is the function being solved for. \(\mathbf{x}\) and \(t\) are the space and time coordinates respectively. \(\nabla^2\) is the Laplacian operator.
 
     Currently it only works in two spatial dimensions, but three spatial dimensions will be implemented.
     Currently advection is not supported, but this is to be implemented in future.
@@ -60,7 +60,7 @@
 
     \section[Installation]{Installation}
     \subsection[Prerequisites]{Prerequisites}
-    \texttt{nard} has been tested and developed on 64 bit Linux (Ubuntu 20.04). In order to install \texttt{nard}, you need to have the following packages installed and added to PATH.
+    \texttt{nard} has been tested and developed on 64 bit Linux (Ubuntu 18.04 and 20.04). In order to install \texttt{nard}, you need to have the following packages installed and added to PATH.
     \begin{itemize}
         \item \texttt{gfortran}
         \item \texttt{gnuplot}
@@ -77,7 +77,7 @@
     \end{lstlisting}
 
     \texttt{cd} into the created folder and make the tests to initialise nard.
-    This is not necessary, but this this will help to verify that the installation is correct.
+    This is not necessary, but this will help to verify that the installation is correct. It will also compile many of the binaries which will be used when making a new reaction term. This compilation will be done on the first call of \texttt{nard new} is not sone here.
     \begin{lstlisting}[label={lst:cd}]
         cd nard
         make tests
@@ -98,8 +98,8 @@
         nard2 new [function_file.f90] [reaction name]
     \end{lstlisting}
     Here \texttt{[function\_file.f90]} is the path to the fortran file which contains the functions specifying the reaction term and the diffusion matrix.
-    \texttt{[reaction name]} is the name the user assigns the reaction, and will be used by the user when running the reaction eith a config.
-    Best not to use special characters, especially space or sny slash characters because this will be used as a filename.
+    \texttt{[reaction name]} is the name the user assigns the reaction, and will be used by the user when running the reaction with a config.
+    Best not to use special characters, especially space or any slash characters because this will be used as a filename.
     Numbers, letters and underscores should be ok.
     Using the same name as a previous reaction will overwrite the previous reaction.
 
@@ -114,7 +114,7 @@
     \section[Config File Specifications]{Config File Specifications}
     \label{sec:config_file}
     The config file is an h5 file, with a number of datasets, as follows.
-    MATLAB code is provided for writing h5 config files. A config \texttt{struct} should be made with values associated with the same name and value as teh corresponding h5 file.
+    MATLAB code is provided for writing h5 config files. A config \texttt{struct} should be made with values associated with the same name and value as the corresponding h5 file.
     \begin{table}
         \centering
         \caption{Config File Specifications}
@@ -258,8 +258,8 @@
         So chemical 1 can be accessed with \texttt{u\_in(:, 1)}.
         In general, the concentration of chemical \(j\) at gridpoint \(i\) is stored in \texttt{u\_in(i, j)}.
         \item \texttt{x\_in}: specifies the grid values. Each column is a flattened \texttt{meshgrid}.
-        ~\texttt{x\_in(1, j)} contains the \(x\) coordinate of the \(j\)-th grid point.
-        Correspondingly~\texttt{x\_in(2, j)} are the \(y\)-coordinates.
+        ~\texttt{x\_in(:, 1)} contains the \(x\) coordinate of the \(j\)-th grid point.
+        Correspondingly~\texttt{x\_in(:, 2)} are the \(y\)-coordinates.
         \item \texttt{t}: This is the time.
         \item \texttt{u\_out}: This is the output variable. It has the same format as \texttt{u\_in}.
         \item \texttt{user\_params}: This is a constant 1D array of reals which is passed though from the config file, and is defined by the user.
