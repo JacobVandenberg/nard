@@ -21,7 +21,16 @@ function [fname] = h5Animation2D(fname, extra_params)
 %       extra_params.range_min (float, size =({# of chemical species},)):
 %           sets the scale of the plot. Each value is the minimum of the range
 %           for the respective chemical species.
-
+%       extra_params.hide_ticks (boolean):
+%           Hides the ticks on the plots.
+%       extra_params.chemicals (integer array):
+%           Dictates which chemicals should be plotted. [1 2 3 ... N] will
+%           plot all (N) chemicals. [2 4] plots the 2nd and 4th chemicals.
+%       extra_params.fontsize (integer > 0):
+%           Sets the font size for the plot.
+%       extra_params.layout (integer array of length 2):
+%           Sets the layout for the subplots. [2 3] means 2 rows and 3
+%           columns.
    
     if nargin <2
         extra_params.fps=20;
@@ -56,6 +65,14 @@ function [fname] = h5Animation2D(fname, extra_params)
         [~, time_index_end] = max(t >= extra_params.sim_interval(2));
     end
     
+    % Hide ticks
+    if ~isfield(extra_params, 'hide_ticks')
+        extra_params.hide_ticks = false;
+    end
+    
+    if ~isfield(extra_params, 'fontsize')
+        extra_params.fontsize = 20;
+    end
     
     % find the number of frames
     if ~isfield(extra_params, "fps")
@@ -118,6 +135,15 @@ function [fname] = h5Animation2D(fname, extra_params)
     page_size = u_size;
     page_size(3) = double(1);
     
+    if ~isfield(extra_params, 'chemicals')
+        extra_params.chemicals = 1:u_size(2);
+    end
+    
+    if ~isfield(extra_params, 'layout')
+        extra_params.layout = [ 1 numel(extra_params.chemicals) ];
+    end
+    
+    
     % find minimum and maximum values
     if ~isfield(extra_params, "range_max") || ~isfield(extra_params, "range_min")
         fprintf("range_max or range_min not found in extra_params. Finding range...\n")
@@ -136,8 +162,10 @@ function [fname] = h5Animation2D(fname, extra_params)
     for frame_i = 1:length(t_indices)
         u = h5read(fname, "/uu", double([1 1 t_indices(frame_i)]), page_size);
         clf;
-        for species = 1:length(u(1, :, 1))
-            subplot(1, length(u(1, :, 1)), species)
+        for speciesIndex = 1:length(extra_params.chemicals)
+            species = extra_params.chemicals(speciesIndex);
+            subplot(extra_params.layout(1), extra_params.layout(2), speciesIndex)
+            
             uu = reshape(u(:, species, 1), size(xx));
             
             if interp
@@ -145,14 +173,22 @@ function [fname] = h5Animation2D(fname, extra_params)
             else
                 uu_big = uu;
             end
-            crange = [extra_params.range_min(species) extra_params.range_max(species)];
+            crange = [extra_params.range_min(species) extra_params.range_max(species)+1e-15];
             hold on;
             ylim([min(y_big) max(y_big)])
             imagesc(x_big, y_big, uu_big, crange );
-            title(sprintf("Chemical %i.\nTime = %.2f", species, t(floor(t_indices(frame_i)))));
+            title(sprintf("Chem. %i.\nT = %.2e", species, t(floor(t_indices(frame_i)))));
+            
+            if extra_params.hide_ticks
+                set(gca,'xticklabels',[]);
+                set(gca,'yticklabels',[]);
+            end
+            set(gca,'FontSize',extra_params.fontsize);
+            set(gca,'FontSize',extra_params.fontsize);
+            
             axis square;
             axis tight
-            colorbar;
+            colorbar("FontSize", extra_params.fontsize);
             hold off;
         end
         
