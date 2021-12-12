@@ -3,6 +3,7 @@ system("nard2 new $(dirname $(whereis nard2 | awk '{print $2}'))/src/user_functi
 dt_range = 2.^(-4:-1:-9);
 foldername = sprintf("%s/test_CNNAD", pwd());
 mkdir(foldername);
+if false
 parfor i = 1:numel(dt_range)
     conf = default_config_CNNAD;
     conf.rparams(1) = dt_range(i);
@@ -14,6 +15,7 @@ parfor i = 1:numel(dt_range)
     conf_filename = sprintf('%s/config_%i_CN.h5', foldername, i);
     write_config(conf, conf_filename, true);
     nard2('_convtesting_CNNAD', conf_filename);
+end
 end
 
 errors = zeros(size(dt_range));
@@ -37,6 +39,7 @@ for i = 1:length(dt_range)
         current_u = uu(:, 1, current_index);
         exact_solution = 10 * exp(-8*pi^2/3*current_time^3) .* sin(xx * 2 * pi) .* cos(yy*2*pi);
         error_sq = ( exact_solution - reshape(current_u, size(xx)) ).^2;
+        
         errors(i) = max(sqrt( sum(error_sq .* integration_weights, 'all') ), errors(i));
         
     end
@@ -59,7 +62,7 @@ function [conf] = default_config_CNNAD()
     conf.rparams(1:3) = [dt 1.0 60.0];
     % dt, max time, plot_interval
     conf.iparams = zeros(64, 1);
-    conf.iparams(1:7) = [1000 10000000000 1 1 0 1 1];
+    conf.iparams(1:7) = [1000 10000000000 1 1 0 2 1];
     % savenum, max_save_size, BCx, BCy, (BCz), timestepping_method,
     % non-autonomous diffusion? (1 for NA, 0 for A)
     conf.iparams = int64(conf.iparams);

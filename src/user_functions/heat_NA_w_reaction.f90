@@ -10,11 +10,7 @@ module user_functions
         real (rp), intent(in) :: t
         real (rp), intent(out), dimension(:, :) :: u_out
         real (rp), dimension(:), intent(in) :: user_params
-
-        u_out(:, 1) = user_params(5) * (u_in(:, 1) - u_in(:, 1)**3_rp - u_in(:, 2))
-        u_out(:, 2) = user_params(5) * (user_params(3) * (u_in(:, 1) -&
-            user_params(2) * u_in(:, 2) - user_params(1)))
-        
+        u_out = u_in;
         return
     end subroutine reaction_term
 
@@ -25,8 +21,7 @@ module user_functions
         real (rp), intent(out), dimension(:, :) :: diff_out
         real (rp), dimension(:), intent(in) :: user_params
 
-        diff_out(:, 1_ip) = user_params(5) * 1_rp
-        diff_out(:, 2_ip) = user_params(5) * 4_rp
+        diff_out(:, 1) = 1;
 
     end subroutine diffusivity
 
@@ -37,8 +32,7 @@ module user_functions
         real (rp), intent(out), dimension(:, :) :: adv_out
         real (rp), dimension(:), intent(in) :: user_params
 
-        adv_out(:, 1) = user_params(4) * 1/200 * (100 + x_in(:, 2))
-        adv_out(:, 2) = user_params(4) * 1/200 * (100 + x_in(:, 2))
+        adv_out = 0
 
     end subroutine advection_coefficient
 

@@ -17,6 +17,8 @@ program nard2D
     Print *, "getting user RHS function"
     conf%explicit_rhs => reaction_term
     conf%diffusivity => diffusivity
+    conf%advection_coefficient => advection_coefficient
+ 
 
     Print *, "getting config"
     IF (COMMAND_ARGUMENT_COUNT() /= 1_ip)THEN

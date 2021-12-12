@@ -106,6 +106,112 @@ module diff
             return
         end subroutine sparse_tridiag
 
+        subroutine sparse_tridiag_lower(a, b, c, N, val, indx, jndx, ierr)
+            ! retuns NxN tridiagonal sparse matrix with a on main diagonal,
+            ! b on lower diagonal and c on diagonal below b.
+            !
+            ! this function allocates the memory for the sparse matrix
+            ! which must be deallocated later
+            !
+            ! inputs: a: value on main diagonal
+            !         b: value on lower diagonal
+            !         c: value on diagonal below b
+            !         N: size of output matrix
+            !
+            ! output: val: non-zero values in the matrix (length 3N - 2)
+            !         indx: i indices (length 3N - 2)
+            !         jndx: j indices (length 3N - 2)
+            !         ierr: error flag (length 3N - 2)
+            !
+
+            implicit none
+            real (rp), intent(in) :: a, b, c
+            integer (ip), intent(in) :: N
+            integer (ip), intent(out) :: ierr
+            real (rp), dimension(:), allocatable :: val
+            integer (ip), dimension(:), allocatable :: indx, jndx
+            integer (ip) :: i
+
+            allocate(indx(3_ip*N-3_ip), jndx(3_ip*N-3_ip), val(3_ip*N-3_ip), STAT=ierr)
+            if (ierr/=0_ip) then
+                return
+            end if
+
+            if (N == 0_ip) then
+                return
+            end if
+
+            if (N == 1_ip) then
+                val(1_ip) = a
+                indx(1_ip) = 1_ip
+                jndx(1_ip) = 1_ip
+                return
+            end if
+
+            val(1_ip) = a
+            val(2_ip) = b
+            val(3_ip) = a
+            indx(1_ip) = 1_ip
+            jndx(1_ip) = 1_ip
+            indx(2_ip) = 2_ip
+            jndx(2_ip) = 1_ip
+            indx(3_ip) = 2_ip
+            jndx(3_ip) = 2_ip
+            do i = 3_ip, N
+                indx(3_ip*i-5_ip:3_ip*i-3_ip) = i
+                jndx(3_ip*i-5_ip:3_ip*i-3_ip) = (/ i-2_ip, i-1_ip, i /)
+                val(3_ip*i-5_ip:3_ip*i-3_ip) = (/ c, b, a /)
+            end do
+            return
+        end subroutine sparse_tridiag_lower
+
+        type (coo_matrix) function single_diff_FD(x, BC, ierr)
+            ! returns a sparse single derivative matrix, with upwinding
+            ! input:
+            !   x: equispaced grid
+            !   BC: integer (ip, 1 if boundary conditions are periodic
+            ! return: coo_matrix of the double derivative matrix.
+            !
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            real (rp), dimension(:), intent(in) :: x
+            integer (ip), intent(in) :: BC
+
+            ! outputs
+            integer (ip), intent(out) :: ierr
+            type (coo_matrix) :: return_matrix
+
+            ! runtime
+            real (rp) :: dx
+            integer (ip) :: xlen
+            ! END DECLARATIONS
+
+            ! BEGIN FUNCTION
+            ! make sure youve got enough points
+            xlen = size(x, 1_ip)
+            if (xlen < 2_ip) then
+                ierr = -1_ip
+                return
+            end if
+
+            dx = x(2_ip) - x(1_ip)
+            call sparse_tridiag_lower(dble(3)/(dble(2) * dx), dble(-4)/(dble(2) * dx), dble(1)/(dble(2) * dx), xlen,&
+                    return_matrix%vals, return_matrix%indx, return_matrix%jndx, ierr)
+            return_matrix%n = xlen; return_matrix%m = xlen
+
+            if (BC == 1_ip) then
+                call return_matrix%set_value(1_ip, xlen, return_matrix%get_value(2_ip, 1_ip), ierr)
+                call return_matrix%set_value(1_ip, xlen-1, return_matrix%get_value(3_ip, 1_ip), ierr)
+                call return_matrix%set_value(2_ip, xlen, return_matrix%get_value(3_ip, 1_ip), ierr)
+            end if
+
+            single_diff_FD = return_matrix
+            return
+            ! END FUNCTION
+        end function single_diff_FD
+
         type (coo_matrix) function double_diff_FD(x, BC, ierr)
             ! returns a sparse double derivative matrix
             ! input:
@@ -239,5 +345,43 @@ module diff
             call sparse_add(DDx_matrix, DDz_matrix, ierr)
             laplacian3D = DDx_matrix
         end function laplacian3D
+
+        type (coo_matrix) function advection2d (x, y, BCx, BCy, ierr)
+            !
+            ! generates a sparse advection matrix
+            !
+            ! inputs:
+            !   x, y: vector of equispaced grid points
+            !   BCx, BCy: boundary conditions for x and y directions (1 if periodic)
+            !
+            ! outputs:
+            !   ierr: error flag
+            !   return value: laplacian matrix in sparse coo form
+            !
+            implicit none
+
+            ! BEGIN DECLARATIONS
+            ! inputs
+            real (rp), dimension(:), intent(in) :: x, y
+            integer (ip), intent(in) :: BCx, BCy
+
+            ! outputs
+            integer (ip), intent(out) :: ierr
+
+            ! runtime
+            type (coo_matrix) :: Dx_matrix
+
+
+            ! END DECLARATIONS
+
+            ! BEGIN FUNCTION
+            Dx_matrix = single_diff_FD(x, BCx, ierr);
+
+            Dx_matrix = sparse_kron(Dx_matrix, speye(size(y, 1_ip, KIND=ip), ierr), ierr)
+            advection2d = Dx_matrix
+
+            ! END FUNCTION
+
+        end function advection2d
 
 end module diff

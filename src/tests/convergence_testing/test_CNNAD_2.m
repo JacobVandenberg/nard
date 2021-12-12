@@ -1,25 +1,27 @@
-system("nard2 new $(dirname $(whereis nard2 | awk '{print $2}'))/src/user_functions/heun_test.f90 _convtesting_heun");
+system("nard2 new $(dirname $(whereis nard2 | awk '{print $2}'))/src/user_functions/heat_NA_w_reaction.f90 _convtesting_CNNAD_2");
 
 dt_range = 2.^(-4:-1:-9);
-foldername = sprintf("%s/test_heun", pwd());
+foldername = sprintf("%s/test_CNNAD_2", pwd());
 mkdir(foldername);
+if true
 parfor i = 1:numel(dt_range)
     conf = default_config_CNNAD;
     conf.rparams(1) = dt_range(i);
     conf.iparams(1:7) = [1000 10000000000 1 1 0 2 1];
     % savenum, max_save_size, BCx, BCy, (BCz), timestepping_method, NAD?
     
-    conf.savefilename = sprintf("%s/results_%i_heun.h5",foldername, i);
-    conf.plotfilename = sprintf("%s/temp%i_heun.png", foldername, i);
-    conf_filename = sprintf('%s/config_%i_heun.h5', foldername, i);
+    conf.savefilename = sprintf("%s/results_%i_CN_2.h5",foldername, i);
+    conf.plotfilename = sprintf("%s/temp%i_CN_2.png", foldername, i);
+    conf_filename = sprintf('%s/config_%i_CN_2.h5', foldername, i);
     write_config(conf, conf_filename, true);
-    nard2('_convtesting_heun', conf_filename);
+    nard2('_convtesting_CNNAD_2', conf_filename);
+end
 end
 
 errors = zeros(size(dt_range));
 for i = 1:length(dt_range)
     
-    savefilename = sprintf("%s/test_heun/results_%i_heun.h5",pwd(), i);
+    savefilename = sprintf("%s/test_CNNAD_2/results_%i_CN_2.h5",pwd(), i);
     x = h5read(savefilename, "/x");
     y = h5read(savefilename, "/y");
     uu = h5read(savefilename, "/uu");
@@ -35,7 +37,7 @@ for i = 1:length(dt_range)
             break
         end
         current_u = uu(:, 1, current_index);
-        exact_solution = xx*0 + sqrt( 2/3 * current_time^3 + 1 );
+        exact_solution = exp( (1 - pi*pi*4)*current_time ) * cos(pi * 2 * xx);
         error_sq = ( exact_solution - reshape(current_u, size(xx)) ).^2;
         errors(i) = max(sqrt( sum(error_sq .* integration_weights, 'all') ), errors(i));
         
@@ -46,7 +48,7 @@ end
 function [conf] = default_config_CNNAD()
     
     dt = 0.0001;
-    N = 32;
+    N = 512;
 
     conf.x = linspace(-1, 1, N+1);
     conf.x = conf.x(2:end);
@@ -59,7 +61,7 @@ function [conf] = default_config_CNNAD()
     conf.rparams(1:3) = [dt 1.0 60.0];
     % dt, max time, plot_interval
     conf.iparams = zeros(64, 1);
-    conf.iparams(1:7) = [1000 10000000000 1 1 0 1 1];
+    conf.iparams(1:7) = [1000 10000000000 1 1 0 2 1];
     % savenum, max_save_size, BCx, BCy, (BCz), timestepping_method,
     % non-autonomous diffusion? (1 for NA, 0 for A)
     conf.iparams = int64(conf.iparams);
@@ -76,7 +78,7 @@ function [conf] = default_config_CNNAD()
 
     [xx, yy] = meshgrid(conf.x, conf.y);
 
-    temp = 1 + xx*0;
+    temp = cos(xx*2*pi);
     conf.IC(:, 1) = temp(:);
     
   

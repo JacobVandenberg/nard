@@ -25,4 +25,15 @@ module user_functions
 
     end subroutine diffusivity
 
+    subroutine advection_coefficient(u_in, x_in, t, adv_out, user_params)
+        implicit none
+        real (rp), dimension(:, :), intent(in) :: u_in, x_in
+        real (rp), intent(in) :: t
+        real (rp), intent(out), dimension(:, :) :: adv_out
+        real (rp), dimension(:), intent(in) :: user_params
+
+        adv_out = 0
+
+    end subroutine advection_coefficient
+
 end module user_functions

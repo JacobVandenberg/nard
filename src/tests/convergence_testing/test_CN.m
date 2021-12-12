@@ -7,7 +7,8 @@ parfor i = 1:numel(dt_range)
     conf = default_config_CN;
     conf.rparams(1) = dt_range(i);
     conf.iparams(1:7) = [1000 10000000000 1 1 0 2 0];
-    % savenum, max_save_size, BCx, BCy, (BCz), timestepping_method, NAD?
+    % savenum, max_save_size, BCx, BCy, (BCz), timestepping_method, NAD?,
+    % Advection?
     
     conf.savefilename = sprintf("%s/results_%i_CN.h5",foldername, i);
     conf.plotfilename = sprintf("%s/temp%i_CN.png", foldername, i);

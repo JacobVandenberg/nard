@@ -1,21 +1,22 @@
 FC=gfortran
 OUTPREFIX=../bin/
 #MKLROOT=/home/jacob/intel/oneapi/mkl/latest
-FFLAGS=-lhdf5 -lhdf5_fortran
+FFLAGS=-lhdf5 -lhdf5_fortran -fbounds-check
 FDEBUG=-g -Wall -Wextra -fcheck=all -fbacktrace
 FOPTIM=-O3 -fopenmp
-SRC= config_m.f90 diff.f90 evolvePDE.f90 helpers.f90 ogpf.f90 precision.f90 sparse_matrices.f90 lusol/src/lusol.f90\
+SRC= config_m.f90 diff.f90 evolvePDE.f90 helpers.f90 ogpf.f90 precision.f90 sparse_matrices.f90 \
 data.f90
 OBJ=$(SRC:.f90=.o)
 FFLAGS+=$(FOPTIM)
 LIB=-L/usr/lib/x86_64-linux-gnu/hdf5/serial
 
 LIB+= -L${MKLROOT}/lib/intel64 -Wl,--no-as-needed -lmkl_gf_ilp64 -lmkl_gnu_thread -lmkl_core -lgomp -lpthread -lm -ldl
-FFLAGS +=  -fdefault-integer-8  -m64  -I"${MKLROOT}/include"
+FFLAGS += -fdefault-integer-8  -m64  -I"${MKLROOT}/include"
 
-INC=-I/usr/include/hdf5/serial -I./lusol/src
 
-TESTS = test_mkl test_diff test_evolvePDE test_helpers test_lusol test_sparse_matrices test_data test_bigdata test_config_m
+INC=-I/usr/include/hdf5/serial
+
+TESTS = test_mkl test_diff test_evolvePDE test_helpers  test_sparse_matrices test_data test_bigdata test_config_m
 NARD_EXE = nard2D
 
 %.o: %.f90
@@ -47,15 +48,12 @@ clean:
 .PHONY: realclean
 realclean:
 	rm -f *.o *.mod ogpf_temp_script.gp ../bin/* user_config.o user_config.mod user_config.f90
-	cd lusol && make clean && cd ..
 
 
 helpers.o: precision.o
 config_m.o: helpers.o precision.o ogpf.o data.o
-sparse_matrices.o: helpers.o precision.o lusol/src/lusol.o
-diff.o: sparse_matrices.o precision.o lusol/src/lusol.o
-evolvePDE.o: config_m.o helpers.o ogpf.o diff.o precision.o lusol/src/lusol.o sparse_matrices.o data.o
-lusol/src/lusol.o:
-	cd lusol && make && cd ..
+sparse_matrices.o: helpers.o precision.o
+diff.o: sparse_matrices.o precision.o 
+evolvePDE.o: config_m.o helpers.o ogpf.o diff.o precision.o sparse_matrices.o data.o
 data.o: precision.o
 user_config.o: $(OBJ)

@@ -2,7 +2,6 @@
 
 module sparse_matrices
     use helpers
-    use lusol
     use hdf5
     use precision
     implicit none

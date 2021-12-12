@@ -14,9 +14,11 @@ module config_m
         real (rp), dimension(:, :), allocatable :: IC, xx, yy
         real (rp) :: dt, t_max, plot_interval
         integer (ip) :: BCx, BCy, savenum, max_save_size, timestepping_method
-        procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs, diffusivity
+        procedure (example_explicit_rhs), pointer, nopass :: explicit_rhs, diffusivity,&
+         advection_coefficient, diffusivity_derivative
         character (:), allocatable :: savefilename, plotfilename
         integer (ip), dimension(64) :: iparams
+        logical :: advection
 
 
     contains
@@ -41,11 +43,11 @@ module config_m
     end type config3d
 
     interface
-        subroutine example_explicit_rhs(u_in, x_in, t_in, u_out, user_params)
+        subroutine example_explicit_rhs(u_in, x_in, t_in, u_out, dudxx, user_params)
             import :: rp
             ! example right hand side
             implicit none
-            real (rp), dimension(:, :), intent(in) :: u_in, x_in
+            real (rp), dimension(:, :), intent(in) :: u_in, x_in, dudxx
             real (rp), intent(in) :: t_in
             real (rp), dimension(:, :), intent(out) :: u_out
             real (rp), dimension(:), intent(in) :: user_params
@@ -178,6 +180,7 @@ module config_m
             this%savenum = iparams(1)
             this%max_save_size = iparams(2)
             this%timestepping_method = iparams(6)
+            this%advection = iparams(8)
 
             this%DBCx_plus_mask = file_o%read_integer_vector("DBCx_plus_mask", ierr)
             if (ierr /= 0) then

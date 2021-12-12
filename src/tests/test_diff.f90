@@ -10,11 +10,15 @@ program test_diff
     call test_sparse_tridiag
     Print *, 'test_double_diff_FD'
     call test_double_diff_FD
+    Print *, 'test_single_diff_FD'
+    call test_single_diff_FD
     Print *, 'test_laplacian2D'
     call test_laplacian2D
+    Print *, 'test_advection2D'
+    call test_advection2D
     Print *, 'kron_order'
     !call kron_order
-    call test_laplacian3D
+    !call test_laplacian3D
     contains
         subroutine test_tridiag
             implicit none
@@ -96,6 +100,26 @@ program test_diff
 
         end subroutine test_double_diff_FD
 
+        subroutine test_single_diff_FD
+            implicit none
+            type (coo_matrix) :: mat
+            real (rp), dimension(:), allocatable :: x
+            integer (ip) :: ierr
+
+            x = linspace(dble(0), dble(4), 5_ip)
+            mat = single_diff_FD(x, 1_ip, ierr)
+            Print *, mat%vals
+            Print *, mat%indx
+            Print *, mat%jndx
+
+            deallocate(x)
+
+            x = linspace(dble(0), dble(4), 5_ip)
+            mat = single_diff_FD(x, 0_ip, ierr)
+            Print *, mat%vals
+
+        end subroutine test_single_diff_FD
+
         subroutine test_laplacian2D
             implicit none
             type (coo_matrix) :: mat
@@ -119,6 +143,30 @@ program test_diff
             call gp%surf(xx, yy, uu_plot)
 
         end subroutine test_laplacian2D
+
+        subroutine test_advection2D
+            implicit none
+            type (coo_matrix) :: mat
+            type (gpf) :: gp
+            real (rp), dimension(:), allocatable :: x, y
+            real (rp), dimension(:, :), allocatable :: xx, yy, Luu, uu_plot
+            integer (ip) :: ierr, N
+            N = 50_ip
+            x = linspace(dble(-1), dble(1), N)
+            y = linspace(dble(-1), dble(1), N)
+
+            call meshgrid(xx, yy, x, y, ierr)
+
+            mat = advection2D(x, y, 1_ip, 1_ip, ierr)
+            allocate(Luu(N * N, 1), uu_plot(N, N))
+
+            Print *, mat%n, mat%m
+
+            call coo_multiply(mat, reshape(cos(3.14159 * xx) + cos(3.14159 * yy), (/N*N, 1_ip/)), Luu)
+            uu_plot = reshape(Luu, (/N, N/))
+            call gp%surf(xx, yy, uu_plot)
+
+        end subroutine test_advection2D
 
         subroutine kron_order
             ! which order should i kron the double derivative matrix in order to make a 3d laplacian?
